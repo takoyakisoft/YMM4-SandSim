@@ -8,6 +8,41 @@ RWTexture2D<uint> LightField : register(u0);
 
 static const uint EmptyRigidOwner = 0xffffffffu;
 
+float ReadExplosionPressure(int2 cell)
+{
+    if (cell.x < 0 || cell.y < 0 ||
+        cell.x >= (int)LogicalStateWidth || cell.y >= (int)LogicalStateHeight)
+        return 0.0f;
+    return ExplosionPressure.Load(int3(cell, 0));
+}
+
+float ExplosionFlashAt(uint2 cell)
+{
+    if (ExplosionStrength <= 0.0f)
+        return 0.0f;
+
+    const int2 p = int2(cell);
+    const float pressure = ReadExplosionPressure(p);
+    if (pressure <= 0.0f)
+        return 0.0f;
+
+    // A wave-front cell has pressure while at least one neighbour is still
+    // untouched. Highlight that one-cell boundary instead of the filled field,
+    // so the flash reads as a clean expanding shock ring.
+    float minimumNeighbour = ReadExplosionPressure(p + int2(-1, -1));
+    minimumNeighbour = min(minimumNeighbour, ReadExplosionPressure(p + int2( 0, -1)));
+    minimumNeighbour = min(minimumNeighbour, ReadExplosionPressure(p + int2( 1, -1)));
+    minimumNeighbour = min(minimumNeighbour, ReadExplosionPressure(p + int2(-1,  0)));
+    minimumNeighbour = min(minimumNeighbour, ReadExplosionPressure(p + int2( 1,  0)));
+    minimumNeighbour = min(minimumNeighbour, ReadExplosionPressure(p + int2(-1,  1)));
+    minimumNeighbour = min(minimumNeighbour, ReadExplosionPressure(p + int2( 0,  1)));
+    minimumNeighbour = min(minimumNeighbour, ReadExplosionPressure(p + int2( 1,  1)));
+
+    const float front = minimumNeighbour < 0.001f ? saturate(pressure * 2.5f) : 0.0f;
+    const float core = saturate(pressure * 0.10f);
+    return saturate(max(front, core) * ExplosionStrength);
+}
+
 uint MaterialAt(uint2 cell)
 {
     // Initialize first so FXC /WX can prove the return value is assigned.
@@ -45,7 +80,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     // debris and fracture stay synchronized without a separate event list.
     if (ExplosionStrength > 0.0f)
     {
-        const float flash = saturate(ExplosionPressure.Load(int3(id, 0)) * ExplosionStrength);
+        const float flash = ExplosionFlashAt(id);
         light = max(light, float3(1.00f, 0.48f, 0.10f) * flash);
     }
     const float transmission = lerp(1.0f, MaterialLightTransmission(material), saturate(ShadowStrength));
