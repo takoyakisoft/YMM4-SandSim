@@ -177,7 +177,7 @@ void main(
     const float propagated = max(0.0f, neighbour - ExplosionFalloff) * TransmissionAt(center);
     const float retained = PressureAt(center) * ExplosionDecay;
     const float eventSeed = explosion ? 1.0f : 0.0f;
-    const float manualSeed = ManualExplosionSeed(id);
-    const float pressure = max(max(eventSeed, manualSeed), max(propagated, retained));
+    const float manualExplosion = ManualExplosionSeed(id);
+    const float pressure = max(max(eventSeed, manualExplosion), max(propagated, retained));
     NextPressure[id] = pressure < 0.001f ? 0.0f : pressure;
 }
