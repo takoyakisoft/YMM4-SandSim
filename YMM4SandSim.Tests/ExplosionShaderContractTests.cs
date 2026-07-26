@@ -38,13 +38,30 @@ public sealed class ExplosionShaderContractTests
     }
 
     [Fact]
-    public void ExplosionLightingEmphasizesPropagatingShockFront()
+    public void ExplosionLightingMarksOnlyThePropagatingShockFront()
     {
-        var source = ReadShader("SandLightSeed.hlsl");
+        var lighting = ReadShader("SandLighting.hlsli");
+        var seed = ReadShader("SandLightSeed.hlsl");
+        var propagate = ReadShader("SandLightPropagate.hlsl");
 
-        Assert.Contains("float ExplosionFlashAt(", source);
-        Assert.Contains("minimumNeighbour < 0.001f", source);
-        Assert.Contains("saturate(pressure * 2.5f)", source);
+        Assert.Contains("ShockwaveLightOpticalMarker = 30u", lighting);
+        Assert.Contains("bool HasShockwaveLightMarker(", lighting);
+        Assert.Contains("float ExplosionFrontAt(", seed);
+        Assert.Contains("minimumNeighbour < 0.001f", seed);
+        Assert.Contains("material == MaterialEmpty && explosionFront > 0.0f", seed);
+        Assert.Contains("transmission = ShockwaveLightTransmission", seed);
+        Assert.Contains("PackLight(best, UnpackLightTransmission(packedCurrent))", propagate);
+    }
+
+    [Fact]
+    public void RenderShowsMarkedShockFrontAcrossEmptyCells()
+    {
+        var source = ReadShader("SandRenderPS.hlsl");
+
+        Assert.Contains("HasShockwaveLightMarker(packedLight)", source);
+        Assert.Contains("shockwaveAlpha", source);
+        Assert.Contains("material == MaterialEmpty", source);
+        Assert.Contains("float4(shockwaveColor * shockwaveAlpha, shockwaveAlpha)", source);
     }
 
     private static string ReadShader(string fileName)
