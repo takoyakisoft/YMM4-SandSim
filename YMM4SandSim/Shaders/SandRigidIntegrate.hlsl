@@ -13,18 +13,35 @@ float ReadExplosionPressure(int2 p)
     return ExplosionPressure.Load(int3(p, 0));
 }
 
-float2 ExplosionImpulseAt(uint2 cell)
+float2 ExplosionImpulseAt(uint2 cell, float rigidDensity)
 {
     if (ExplosionStrength <= 0.0f)
         return 0.0f;
 
     const int2 p = int2(cell);
-    // Pressure force points down the pressure gradient (away from the blast).
+    const float centerPressure = ReadExplosionPressure(p);
     const float left = ReadExplosionPressure(p + int2(-1, 0));
     const float right = ReadExplosionPressure(p + int2(1, 0));
     const float up = ReadExplosionPressure(p + int2(0, -1));
     const float down = ReadExplosionPressure(p + int2(0, 1));
-    return float2(left - right, up - down) * (1.5f * ExplosionStrength);
+
+    // Use the pressure gradient for direction, but normalize its strength against
+    // ExplosionRadius. The raw gradient is approximately 1/radius, which made
+    // large configured blasts paradoxically push rigid bodies less than small
+    // ones. The normalized front behaves like a radial impulse from a physics
+    // engine while material density still controls how strongly each body moves.
+    const float2 pressureGradient = float2(left - right, up - down);
+    const float gradientMagnitude = length(pressureGradient);
+    if (gradientMagnitude < 0.0001f)
+        return 0.0f;
+
+    const float2 direction = pressureGradient / gradientMagnitude;
+    const float frontStrength = saturate(gradientMagnitude * max(ExplosionRadius, 1.0f) * 1.50f);
+    const float pressureStrength = saturate(centerPressure * 0.35f);
+    const float waveStrength = max(frontStrength, pressureStrength);
+    const float densityScale = rsqrt(max(rigidDensity, 0.50f));
+    const float impulseMagnitude = min(waveStrength * ExplosionStrength * 0.85f * densityScale, 0.90f);
+    return direction * impulseMagnitude;
 }
 
 float2 ClampRigidPosition(float2 position)
@@ -74,7 +91,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     }
     const float damping = PhysicsDamping * rigidProperties.z * fluidVelocityRetention;
     float2 velocity = (current - state.zw) * damping;
-    const float2 explosionImpulse = ExplosionImpulseAt(currentCell);
+    const float2 explosionImpulse = ExplosionImpulseAt(currentCell, rigidProperties.x);
     velocity += explosionImpulse;
 
     // Keep one substep below one cell so the final-cell occupancy broadphase
