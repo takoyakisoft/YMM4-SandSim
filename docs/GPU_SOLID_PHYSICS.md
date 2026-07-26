@@ -1,110 +1,176 @@
-# GPU solid physics design
+# GPU固体物理の設計
 
-## Goal
+## 目的
 
-YMM4-SandSimの既存D3D11セルオートマトンを維持したまま、従来は固定されていた固体素材を、CPU readbackなしで落下・回転・衝突させる。
+YMM4-SandSimには、Direct3D 11上で動く既存のセルオートマトンがあります。
+固定素材にも動きを与えるためにCPU剛体へ読み戻すと、GPUとCPUの同期や別の物理世界が必要になります。
 
-## Solver
+そこで固定素材をGPU上のセル格子から切り離し、連続座標を持つ粒子として落下、回転、衝突させます。
+既存のCAとの接続もGPU上で維持し、CPU readbackは行いません。
 
-- Representation: 1 solid source cell = 1 GPU particle (`float4`: current xy, previous zw).
-- Topology: source imageの8近傍接続を固定トポロジとして使用する。CPU connected-components / contour extractionは行わない。
-- Integration: damped Verlet + gravity, fixed `1/120 s` substep.
-- Constraints: XPBD distance constraints. Horizontal/vertical rest length = 1, diagonal rest length = sqrt(2).
-- Scheduling: 2×2 blockを4 parity phasesで処理し、1 dispatch内では書き込み先を重複させない。水平・垂直辺は重複位相を除外し、斜辺を含む8近傍の各edgeをsolver反復あたり1回だけ解く。奇数論理サイズの最終行・最終列も、偶数パディングセルを使って拘束対象にする。
-- Collision broadphase: logical cell gridそのものを使用する。continuous positionをgridへ投影し、`InterlockedMin`で各cellのownerを決定する。
-- Collision response: owner競合の敗者をprevious positionへrollbackし、そのsubstepの速度を0にする。2回resolveしたあと、最終occupancyを構築する。
-- CA coupling: powder/liquid/gas passはrigid occupancyを移動不可セルとして参照する。rendererも同じoccupancyからrigid source idを逆引きする。
+## ソルバー構成
 
-## Why XPBD instead of a direct AVBD port
+- **表現**：1個の固体source cellを1個のGPU particleとして保持します。
+  状態は`float4`で、現在位置を`xy`、直前位置を`zw`へ格納します。
+- **トポロジ**：source imageの8近傍接続を固定トポロジとして使用します。
+  CPUでconnected-componentsやcontour extractionは行いません。
+- **積分**：damped Verletとgravityを使用し、substepは固定`1/120 s`です。
+- **制約**：XPBD distance constraintを使用します。
+  水平と垂直のrest lengthは1、斜めは`sqrt(2)`です。
+- **スケジューリング**：2×2 blockを4種類のparity phaseで処理し、1 dispatch内では書き込み先を重複させません。
+  水平辺と垂直辺は重複位相を除外し、斜辺を含む8近傍の各edgeをsolver反復あたり1回だけ解きます。
+  奇数の論理サイズでは、最終行と最終列も偶数パディングセルを使って拘束対象にします。
+- **衝突のbroadphase**：論理cell gridそのものを使用します。
+  continuous positionをgridへ投影し、`InterlockedMin`で各cellのownerを決定します。
+- **衝突応答**：owner競合の敗者をprevious positionへrollbackし、そのsubstepの速度を0にします。
+  2回resolveしたあとに最終occupancyを構築します。
+- **CAとの接続**：powder、liquid、gas passはrigid occupancyを移動不可セルとして参照します。
+  rendererも同じoccupancyからrigid source idを逆引きします。
 
-AVBDはGPU並列剛体に適した手法だが、添付demo2dのCPU実装にはBody/contactリストと、単純な全組み合わせcollision discoveryがある。YMM4-SandSimはすでに規則格子を持つため、固定トポロジのXPBDであれば、可変長GPUデータ構造やCPU同期を増やさずD3D11/SM5へ載せられる。
+## XPBDを採用した理由
 
-## Determinism
+AVBDはGPU並列剛体に適した手法ですが、参照したdemo2dのCPU実装にはBodyとcontactのリストがあり、collision discoveryには単純な全組み合わせ探索があります。
+YMM4-SandSimにはすでに規則格子があるため、その構造をbroadphaseとownershipへ流用できます。
 
-- 同じsource cell idは、常に同じowner idを持つ。
-- occupancy競合はatomic minimumで解決し、処理順に依存しない。
-- solver dispatch順とphase順は固定する。
-- シーク/resetは既存timeline policyを通し、rigid stateもsourceから再初期化する。
+固定トポロジのXPBDなら、可変長GPUデータ構造やCPU同期を追加せず、Direct3D 11とShader Model 5の範囲へ収められます。
+この条件が、AVBDを直接移植せずXPBDを採用した理由です。
 
-## Current interaction boundary
+## 決定性
 
-Rigid occupancyはCA移動の障害物になる。粉体と、CAで生成された固定素材はrigid側の支持面として扱う。液体・気体がrigid occupancyの下にある場合はCA状態を凍結して保持し、rigid通過によって質量が消えないようにする。
+- 同じsource cell idは常に同じowner idを持ちます。
+- occupancy競合はatomic minimumで解決し、処理順に依存しません。
+- solver dispatch順とphase順を固定します。
+- シークとresetは既存のtimeline policyを通し、rigid stateもsourceから再初期化します。
 
-GPU上で次の双方向連携を行う。
+## CAとの連携範囲
 
-- rigidセルは、重なっている液体の密度から簡易浮力と流体抵抗を受ける。
-- 火・残り火・溶岩、酸、海水を重なりセルと8近傍から参照し、固定素材の燃焼・融解・腐食・銅の酸化を処理する。
-- CA反応で生成された石・氷などの固定素材は、対応するrigid source slotが空いていればXPBDへ昇格する。
-- 反応後のoccupancy再構築は、新規ownership競合を作らないためclaim-only passとする。同じCA iterationで高価なcollision resolveを二重実行しない。
+Rigid occupancyはCA移動の障害物になります。
+粉体と、CAで生成された固定素材はrigid側の支持面として扱います。
+液体または気体がrigid occupancyの下にある場合はCA状態を凍結して保持し、rigid通過によって質量が消えないようにします。
 
-液体の体積押し出し・圧力、粉体をrigidが押し退ける処理、完全な流体-固体接触、任意位置での新規rigid particle poolは、まだモデル化していない。
+GPU上では、次の双方向連携を行います。
 
-## References used as design input
+- rigidセルは、重なっている液体の密度から簡易浮力と流体抵抗を受けます。
+- 火、残り火、溶岩、酸、海水を重なりセルと8近傍から参照し、固定素材の燃焼、融解、腐食、銅の酸化を処理します。
+- CA反応で生成された石や氷などの固定素材は、対応するrigid source slotが空いていればXPBDへ昇格します。
+- 反応後のoccupancy再構築は、新しいownership競合を作らないためclaim-only passとします。
+  同じCA iterationで高価なcollision resolveを二重実行しません。
 
-- FallingSandJava: moving solid elements are projected back into a cellular matrix. Source code is not copied or translated.
-- avbd-demo2d: MIT-licensed 2D reference implementation used to inspect iterative constrained rigid-body solver organization. No AVBD source is copied into these shaders.
+液体の体積押し出しと圧力、粉体をrigidが押し退ける処理、完全な流体と固体の接触、任意位置での新規rigid particle poolは、現在のモデルには含めていません。
 
-## Material-specific XPBD properties
+## 設計上の参照元
 
-The rigid lattice no longer treats every fixed material as the same solid.
-`SandBehavior.hlsli` supplies four behavior parameters for each fixed material:
+- FallingSandJava：動くsolid elementをcellular matrixへ戻す構成を参照しました。
+  ソースコードはコピーも翻訳もしていません。
+- avbd-demo2d：MITライセンスの2D実装を、反復制約型の剛体solver構成を確認するために参照しました。
+  AVBDのソースコードはshaderへ移植していません。
 
-- **Density** -> inverse mass used by XPBD projection. Gravity acceleration itself remains mass-independent.
-- **Compliance** -> bond softness. Metals/minerals are stiff; wax and organics deform visibly.
-- **Velocity retention** -> material damping layered on the global damping setting.
-- **Tensile break strain** -> a persistent E/S/SE/SW bond fracture threshold.
+## 素材別のXPBD特性
 
-Mixed-material bonds use the softer compliance and 70% of the weaker material's break strain. This makes interfaces, for example wood-to-stone, easier to tear than homogeneous material without introducing a CPU body graph.
+固定素材をすべて同じ固体として扱うと、金属もワックスも同じ変形と破断になります。
+そこで`SandBehavior.hlsli`から、固定素材ごとに4種類の挙動パラメータを供給します。
 
-Representative behavior:
+- **Density**：XPBD projectionで使用するinverse massへ変換します。
+  重力加速度そのものは質量に依存しません。
+- **Compliance**：bondの柔らかさです。
+  金属と鉱物は硬く、ワックスと有機素材は目に見えて変形します。
+- **Velocity retention**：global dampingへ重ねる素材別の減衰率です。
+- **Tensile break strain**：E、S、SE、SW方向のbondに対する永続的な破断閾値です。
 
-| Group | Examples | Behavior |
+異素材間のbondでは、より柔らかいcomplianceと、弱い側のbreak strainの70%を使用します。
+このため、木と石のような異素材境界は、均質な素材より裂けやすくなります。
+CPU側にbody graphを追加する必要はありません。
+
+代表的な挙動は次のとおりです。
+
+| 分類 | 例 | 挙動 |
 | --- | --- | --- |
-| Dense ductile | Metal, copper, gold | Very stiff, heavy in constraints, hard to tear |
-| Hard brittle | Stone, brick, quartz, ruby | Stiff, moderate/low tensile fracture |
-| Very brittle | Cobalt glass, ice | Stiff, fractures at small tensile strain |
-| Porous/brittle | Sandstone, coral, permafrost | Less stiff and easier to fracture |
-| Fibrous | Wood, amber | Flexible, moderately strong |
-| Soft | Pink wax | Highly compliant, high strain before tearing |
-| Organic | Plant, grass, moss, leaf, algae | Light, highly compliant, strongly damped |
+| 高密度で延性が高い | Metal, copper, gold | 硬く、constraint上で重く、破断しにくい |
+| 硬く脆い | Stone, brick, quartz, ruby | 硬いが、引張方向では比較的破断しやすい |
+| 脆性が高い | Cobalt glass, ice | 硬く、小さい引張strainで破断する |
+| 多孔質で脆い | Sandstone, coral, permafrost | やや柔らかく、破断しやすい |
+| 繊維質 | Wood, amber | しなりがあり、中程度の強度を持つ |
+| 軟質 | Pink wax | complianceが高く、大きく伸びてから破断する |
+| 有機素材 | Plant, grass, moss, leaf, algae | 軽く、complianceとdampingが大きい |
 
-A broken bond is represented by a large persistent marker in the existing `RigidLambda` texture. Normal XPBD multipliers are cleared each substep; broken markers are preserved, so no extra bond texture or GPU->CPU readback is needed. A full `ClearAndRebuild` restores all bonds. Emitter restamping preserves fracture history for existing rigid source particles to avoid asymmetric partial healing.
+破断したbondは、既存の`RigidLambda` textureに大きな永続markerとして記録します。
+通常のXPBD multiplierはsubstepごとに消去しますが、破断markerは保持します。
+そのため、追加のbond textureやGPUからCPUへのreadbackは必要ありません。
 
-## CA parameter consistency
+`ClearAndRebuild`ではすべてのbondを復元します。
+Emitterのrestampでは、既存のrigid source particleが持つ破断履歴を保持し、片側だけが再接着する状態を避けます。
 
-- 液体のCA浮沈順は`FluidProperties().x`と同じ順序（液体窒素 < 油 < 水 < 海水 < インク < 酸 < スライム < 溶岩）に統一する。密度差による交換は縦・斜め方向だけで行い、横方向は空セルへの拡散だけにして、界面の左右往復を防ぐ。
-- 汎用インクは油と同じ可燃物として扱わず、油だけを高可燃液体とする。
-- 塩とピンク岩塩は、水・海水中で同じ低確率の溶解挙動を持たせ、油中では溶解させない。
+## CAパラメータの整合性
 
-## CA boundary rules
+- 液体のCA浮沈順は`FluidProperties().x`と同じ順序（液体窒素 < 油 < 水 < 海水 < インク < 酸 < スライム < 溶岩）に統一します。
+  密度差による交換は縦と斜め方向だけで行い、横方向は空セルへの拡散だけにして、界面の左右往復を防ぎます。
+- 汎用インクは油と同じ可燃物として扱わず、油だけを高可燃液体とします。
+- 塩とピンク岩塩は、水と海水中で同じ低確率の溶解挙動を持たせ、油中では溶解させません。
 
-- Backing textureは偶数サイズへ丸めるが、論理グリッド外のパディングセルだけを固定壁として扱う。奇数幅・高さの最終実セルをブロック単位で凍結しない。
-- `1 × N` / `N × 1`では2×2 Margolus分割を使わず、2位相の1D pair updateで寿命・反応・縦交換・横拡散を継続する。`1 × 1`でも寿命更新を継続する。
-- shifted phaseで2×2 blockの外側になる境界単独セルも、単純コピーではなく寿命を1回進める。これにより、火・煙・蒸気・残り火の寿命が画像端だけ半速になることを防ぐ。rigid occupancy下のCA状態だけは意図的に凍結する。
-- 静的契約テストでは、1～9セルの偶数・奇数・退化グリッドについて、各CAフェーズで全実セルがちょうど1回書き込まれることを検査する。
+## CA境界の規則
 
-## Explosion coupling
+- Backing textureは偶数サイズへ丸めますが、論理グリッド外のパディングセルだけを固定壁として扱います。
+  奇数幅または奇数高さの最終実セルをブロック単位で凍結しません。
+- `1 × N`と`N × 1`では2×2 Margolus分割を使わず、2位相の1D pair updateで寿命、反応、縦交換、横拡散を継続します。
+  `1 × 1`でも寿命更新を継続します。
+- shifted phaseで2×2 blockの外側になる境界単独セルも、単純コピーではなく寿命を1回進めます。
+  火、煙、水蒸気、残り火の寿命が画像端だけ半速になることを防ぎます。
+  rigid occupancy下のCA状態だけは意図的に凍結します。
+- 静的契約テストでは、1～9セルの偶数、奇数、退化グリッドについて、各CA phaseで全実セルがちょうど1回書き込まれることを検査します。
 
-Explosions have two seed paths. Gunpowder ignition sets a one-shot metadata event. The optional YMM4 `VideoEffectController` samples an item-local center position and trigger frame, then seeds one pressure cell on the first simulation iteration that crosses the trigger. The second preview handle edits the pressure radius in cell units. Both paths converge in `SandExplosionUpdate`, which advances a GPU-resident scalar pressure field over the existing cell grid; there is no CPU body/contact/event list or GPU readback.
+## 爆発との連携
 
-Timeline evaluation is classified explicitly as `Initial`, `Continuous`, or `Random`. Initial access builds state from the current input and applies only the configured bounded warm-up. Continuous access includes both a repeated evaluation of the same frame (a zero-delta no-op unless parameters invalidate it) and the next sequential frame (one advance). Random access, including seeks and rewinds, discards irreversible GPU state and rebuilds from the current input with the same bounded warm-up; it never replays from the item start.
+爆発には2種類のseed経路があります。
+火薬の着火はone-shot metadata eventを設定します。
+任意で有効にできるYMM4の`VideoEffectController`は、アイテムローカルの中心位置、発火フレーム、セル単位のpressure radiusを取得します。発火条件を最初に跨いだsimulation iterationでは、指定半径のradial pressure fieldを直接seedします。各セルへのseed値は爆心からの距離と途中素材の`ExplosionPressureTransmission`から求めるため、半径変更がそのフレームの爆風範囲へ反映され、厚い壁の背後では圧力が減衰します。
+2個目のpreview handleでは、このpressure radiusを編集できます。
 
-- Pressure enters gas almost freely, is damped by liquid/powder, and is strongly attenuated by rigid material. Pink wax uses its dedicated soft-solid transmission before the generic organic branch.
-- The CA reads pressure gradients after ordinary flow and can swap movable material toward lower pressure.
-- `SandRigidIntegrate` reads the same gradient as an impulse. A sufficiently sharp impulse can persistently mark XPBD bonds as broken.
-- Dense/thick walls therefore shield the region behind them while brittle surfaces can still fracture. Diagonal propagation also checks the two cardinal side cells, preventing a wave from teleporting through a fully closed 90-degree corner.
-- Explosion pressure also seeds the render-time light field, synchronizing flash and physical response.
-- A newly ignited gunpowder cell keeps its one-shot explosion event fixed in place until the pressure pass consumes it; CA reactions and all movement/swap paths treat that event-bearing cell as temporarily immovable.
+どちらの経路も`SandExplosionUpdate`へ合流します。火薬のone-shot eventは従来どおり1セルから伝播し、controller seedは指定半径へ即時展開します。
+両方の経路は、既存のcell grid上にあるGPU-resident scalar pressure fieldを更新します。
+CPU側のbody、contact、event listやGPU readbackは使用しません。
 
-## Lighting and shadow transport
+CA側ではpressureを衝撃だけでなくblast heatとしても参照します。高圧の空セルには決定的な確率で`Fire`を生成し、既存の`IgnitionProbability`を増幅して可燃CA素材を着火します。その後の延焼は通常のfire chemistryへ合流し、XPBD固定素材も周囲の火を`SandRigidReact`で受け取ります。
 
-The render-time light field is a GPU-resident RGB max-propagation approximation over the same logical cell grid. Fire, ember, lava, sea lantern and explosion pressure seed the field. Material transmission attenuates outgoing light, so fixed surfaces can receive light while reducing transport through their interior.
+Timeline evaluationは`Initial`、`Continuous`、`Random`へ明示的に分類します。
+Initial accessでは現在の入力から状態を構築し、設定された上限内のwarm-upだけを適用します。
+Continuous accessには、同一フレームの再評価と次の連続フレームを含みます。
+同一フレームはパラメータ変更がなければzero-delta no-opとなり、次フレームだけ1回進めます。
+Random accessにはシークと巻き戻しを含み、不可逆なGPU状態を破棄して現在入力から再構築します。
+アイテム先頭からの全フレーム再生は行いません。
 
-- Gas/water are relatively transmissive; smoke/ink/powder attenuate strongly.
-- Cobalt glass, ice, quartz, pink wax, rose quartz, fluorite, amethyst and amber have explicit translucent-solid transmission before the generic fixed-solid fallback.
-- Diagonal propagation checks both cardinal side cells and only takes the less-blocked route, preventing direct leakage through a closed corner while still allowing light to bend around an open side.
-- This is not ray tracing or additive multi-light radiative transport; it is a deterministic screen-space cell approximation with bounded dispatch count.
+- 圧力は気体をほぼ自由に通過し、液体と粉体では減衰し、rigid materialでは強く減衰します。
+  Pink waxはgeneric organic branchへ入る前に専用のsoft-solid transmissionを使用します。
+- CAは通常flowのあとにpressure gradientを読み、移動可能な素材を低圧側へswapできます。
+- `SandRigidIntegrate`は同じgradientをimpulseとして読みます。
+  十分に鋭いimpulseはXPBD bondへ永続的な破断markerを設定できます。
+- 厚く密度の高い壁ほど背後の圧力を弱めますが、脆い表面は破断する可能性があります。
+  斜め伝播では2つのcardinal side cellも確認し、完全に閉じた90度角をwaveが斜めに通過することを防ぎます。
+- 爆発圧力はrender-time light fieldもseedするため、flashと物理応答が同期します。
+- 着火直後のgunpowder cellは、pressure passがone-shot eventを消費するまでその位置へ固定します。
+  CA reactionとmovement、swapは、そのeventを持つcellを一時的に移動不可として扱います。
 
-## GPU allocation guard
+## ライティングと影の伝播
 
-Simulation buffers are allocated by feature instead of reserving the worst case unconditionally: CA state is 16 bytes/cell, XPBD adds 44, explosion pressure adds 8, and lighting adds 8, for a 76-byte/cell worst case. The state budget is about 304 MiB, and the allocator computes the allowed padded cell count from the enabled feature set. CA-only or partially enabled configurations therefore use substantially less VRAM. The processor rejects an oversized state before D3D11 allocation, and `EnsureResources` repeats the same byte-budget check defensively.
+render-time light fieldは、同じ論理cell grid上に置いたGPU-resident RGB max-propagation近似です。
+Fire、ember、lava、sea lantern、explosion pressureがlight fieldをseedします。
+素材ごとのtransmissionで外向きの光を減衰させるため、固定表面は光を受けつつ、その内部を通る光は弱くなります。
+
+- Gasとwaterは比較的光を通し、smoke、ink、powderは強く減衰します。
+- Cobalt glass、ice、quartz、pink wax、rose quartz、fluorite、amethyst、amberは、generic fixed-solid fallbackより前に専用のtranslucent-solid transmissionを使用します。
+- 斜め伝播では両側のcardinal cellを確認し、より遮蔽の少ない経路だけを採用します。
+  閉じた角を直接漏れることを防ぎつつ、片側が開いていれば角を回り込めます。
+
+この処理はray tracingでも、複数光源を加算するradiative transportでもありません。
+dispatch回数に上限を持つ、決定的なscreen-space cell近似です。
+
+## GPUメモリの上限
+
+Simulation bufferは、最悪構成を常時確保せず、機能ごとに必要な場合だけ確保します。
+CA stateは16 byte/cell、XPBDは44 byte/cell、explosion pressureは8 byte/cell、lightingは8 byte/cellを追加し、全機能有効時は76 byte/cellです。
+
+state budgetは約304 MiBです。
+allocatorは有効な機能のbyte/cellから、パディング後に許容できるcell countを計算します。
+CAだけ、または一部機能だけを有効にした構成では、全機能有効時よりVRAM使用量を抑えられます。
+
+許容サイズを超える場合、processorはD3D11 resourceを確保する前に状態生成を拒否します。
+`EnsureResources`でも同じbyte budgetを再検査し、防御的に上限を維持します。
