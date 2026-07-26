@@ -54,13 +54,12 @@ public sealed class ExplosionShaderContractTests
     }
 
     [Fact]
-    public void RenderShowsMarkedShockFrontAcrossEmptyCells()
+    public void RenderShowsMarkedShockFrontOnlyAcrossEmptyCells()
     {
         var source = ReadShader("SandRenderPS.hlsl");
 
-        Assert.Contains("HasShockwaveLightMarker(packedLight)", source);
+        Assert.Contains("material == MaterialEmpty && HasShockwaveLightMarker(packedLight)", source);
         Assert.Contains("shockwaveAlpha", source);
-        Assert.Contains("material == MaterialEmpty", source);
         Assert.Contains("float4(shockwaveColor * shockwaveAlpha, shockwaveAlpha)", source);
     }
 
