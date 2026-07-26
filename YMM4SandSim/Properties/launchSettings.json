@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "YMM4SandSim": {
+      "commandName": "Executable",
+      "executablePath": "$(YMM4DirPath)YukkuriMovieMaker.exe"
+    }
+  }
+}

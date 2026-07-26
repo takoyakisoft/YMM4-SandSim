@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <YMM4SandSimVersion>0.4.0</YMM4SandSimVersion>
+    <Version>$(YMM4SandSimVersion)</Version>
+    <AssemblyVersion>$(YMM4SandSimVersion).0</AssemblyVersion>
+    <FileVersion>$(YMM4SandSimVersion).0</FileVersion>
+    <InformationalVersion>$(YMM4SandSimVersion)</InformationalVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj' and '$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Optimize>true</Optimize>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

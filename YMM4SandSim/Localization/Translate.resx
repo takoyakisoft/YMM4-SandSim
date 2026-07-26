@@ -1,0 +1,201 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+<data name="CurrentCulture" xml:space="preserve"><value>ja-jp</value></data>
+<data name="Plugin_Name" xml:space="preserve"><value>サンドシミュレーション</value></data>
+<data name="Group_Basic" xml:space="preserve"><value>基本</value></data>
+<data name="Group_Material" xml:space="preserve"><value>素材</value></data>
+<data name="Group_Simulation" xml:space="preserve"><value>シミュレーション</value></data>
+<data name="Group_SolidPhysics" xml:space="preserve"><value>固体物理</value></data>
+<data name="Group_Explosion" xml:space="preserve"><value>爆発</value></data>
+<data name="Group_Lighting" xml:space="preserve"><value>ライト</value></data>
+<data name="Group_Extraction" xml:space="preserve"><value>抽出</value></data>
+<data name="ScreenSize_Name" xml:space="preserve"><value>スクリーンサイズ</value></data>
+<data name="ScreenSize_Desc" xml:space="preserve"><value>画面サイズに合わせてシミュレーションします。</value></data>
+<data name="SourceMode_Name" xml:space="preserve"><value>入力モード</value></data>
+<data name="SourceMode_Desc" xml:space="preserve"><value>初期フレームのみ素材化、空セルへの継続追加、選択位置への毎フレーム再配置を選びます。XPBD固定素材は1入力セル1スロットのため、継続追加では同じソースセルから重複生成しません。</value></data>
+<data name="ParticleSize_Name" xml:space="preserve"><value>粒のサイズ</value></data>
+<data name="ParticleSize_Desc" xml:space="preserve"><value>1セルに対応するピクセル数を指定します。大きいほど高速でGPUメモリを節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・ライト有効時は約150 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。</value></data>
+<data name="MaterialAssignment_Name" xml:space="preserve"><value>素材の割り当て</value></data>
+<data name="MaterialAssignment_Desc" xml:space="preserve"><value>入力色を55色へ分類し、各色に1種類だけ割り当てた物理素材へ変換するか、単一素材へ変換します。</value></data>
+<data name="SingleMaterial_Name" xml:space="preserve"><value>単一素材</value></data>
+<data name="SingleMaterial_Desc" xml:space="preserve"><value>「単一素材」を選んだ場合に使用する素材です。</value></data>
+<data name="ColorMode_Name" xml:space="preserve"><value>表示色</value></data>
+<data name="ColorMode_Desc" xml:space="preserve"><value>入力画像の色を保持するか、分類に使用した素材色で表示します。</value></data>
+<data name="Iterations_Name" xml:space="preserve"><value>更新回数</value></data>
+<data name="Iterations_Desc" xml:space="preserve"><value>1フレームあたりの更新回数を指定します。増やすほどシミュレーションが速く進み、GPU負荷も増えます。</value></data>
+<data name="Warmup_Name" xml:space="preserve"><value>初期更新回数</value></data>
+<data name="Warmup_Desc" xml:space="preserve"><value>初期化直後に追加で進める更新回数を指定します。増やすほど最初のフレームのGPU負荷が増えます。</value></data>
+<data name="Spread_Name" xml:space="preserve"><value>流動性</value></data>
+<data name="Spread_Desc" xml:space="preserve"><value>粉体の斜め移動と液体・気体の横方向への広がりやすさです。</value></data>
+<data name="ReactionStrength_Name" xml:space="preserve"><value>反応の強さ</value></data>
+<data name="ReactionStrength_Desc" xml:space="preserve"><value>燃焼、蒸発、溶解、腐食、発煙などの反応の強さを指定します。100%が標準、0%で素材間の反応を停止します。</value></data>
+<data name="SolidMode_Name" xml:space="preserve"><value>方式</value></data>
+<data name="SolidMode_Desc" xml:space="preserve"><value>固定素材をGPU XPBD格子へ移し、素材別の質量・剛性・破断を使って落下・変形・衝突させます。</value></data>
+<data name="Gravity_Name" xml:space="preserve"><value>重力</value></data>
+<data name="Gravity_Desc" xml:space="preserve"><value>XPBD固体に加える重力を指定します。100%が標準です。液体中では素材の密度に応じて浮力も加わります。</value></data>
+<data name="Stiffness_Name" xml:space="preserve"><value>剛性</value></data>
+<data name="Stiffness_Desc" xml:space="preserve"><value>素材固有の硬さを指定します。100%が標準で、大きいほど形状を保ちやすくなります。</value></data>
+<data name="BreakStrength_Name" xml:space="preserve"><value>破断の強さ</value></data>
+<data name="BreakStrength_Desc" xml:space="preserve"><value>素材固有の壊れにくさを指定します。100%が標準で、大きいほど割れたりちぎれたりしにくくなります。</value></data>
+<data name="SolverIterations_Name" xml:space="preserve"><value>反復回数</value></data>
+<data name="SolverIterations_Desc" xml:space="preserve"><value>XPBDの計算を繰り返す回数を指定します。増やすほど硬い素材が安定し、GPU負荷も増えます。</value></data>
+<data name="ExplosionController_Name" xml:space="preserve"><value>制御点</value></data>
+<data name="ExplosionController_Desc" xml:space="preserve"><value>プレビューに爆発の中心と半径の制御点を表示します。中心の制御点で位置、右側の制御点で半径を変更できます。</value></data>
+<data name="ExplosionX_Name" xml:space="preserve"><value>中心X</value></data>
+<data name="ExplosionX_Desc" xml:space="preserve"><value>アイテムの中心を基準とした爆発の中心座標Xを指定します。</value></data>
+<data name="ExplosionY_Name" xml:space="preserve"><value>中心Y</value></data>
+<data name="ExplosionY_Desc" xml:space="preserve"><value>アイテムの中心を基準とした爆発の中心座標Yを指定します。</value></data>
+<data name="ExplosionFrame_Name" xml:space="preserve"><value>発火フレーム</value></data>
+<data name="ExplosionFrame_Desc" xml:space="preserve"><value>エフェクトの開始から何フレーム目に爆発させるかを指定します。同じフレームを再評価しても重複して爆発しません。</value></data>
+<data name="ExplosionStrength_Name" xml:space="preserve"><value>強さ</value></data>
+<data name="ExplosionStrength_Desc" xml:space="preserve"><value>爆発による圧力波の強さを指定します。100%が標準です。0%で圧力波、衝撃、爆発光を無効化します。</value></data>
+<data name="ExplosionRadius_Name" xml:space="preserve"><value>半径</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>圧力波が広がる目安の半径をセル単位で指定します。圧力は更新ごとに伝わり、衝撃波として広がります。</value></data>
+<data name="LightingStrength_Name" xml:space="preserve"><value>強さ</value></data>
+<data name="LightingStrength_Desc" xml:space="preserve"><value>火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%でライトを無効化します。</value></data>
+<data name="LightingRadius_Name" xml:space="preserve"><value>半径</value></data>
+<data name="LightingRadius_Desc" xml:space="preserve"><value>光が届く半径をセル単位で指定します。大きいほど広く照らし、GPU負荷も増えます。</value></data>
+<data name="AmbientLight_Name" xml:space="preserve"><value>明るさ</value></data>
+<data name="AmbientLight_Desc" xml:space="preserve"><value>ライトが当たっていない部分の明るさを指定します。100%で元の明るさを維持し、小さくすると暗い部分が増えます。</value></data>
+<data name="ShadowStrength_Name" xml:space="preserve"><value>影の強さ</value></data>
+<data name="ShadowStrength_Desc" xml:space="preserve"><value>素材が光を遮る強さを指定します。0%で光が素材を透過し、100%で素材固有の影を最大にします。</value></data>
+<data name="MaskMode_Name" xml:space="preserve"><value>抽出方法</value></data>
+<data name="MaskMode_Desc" xml:space="preserve"><value>素材へ変換する画素の判定方法です。</value></data>
+<data name="AlphaThreshold_Name" xml:space="preserve"><value>不透明度の閾値</value></data>
+<data name="AlphaThreshold_Desc" xml:space="preserve"><value>不透明度がこの値以上のピクセルを素材にします。</value></data>
+<data name="LuminanceThreshold_Name" xml:space="preserve"><value>輝度の閾値</value></data>
+<data name="LuminanceThreshold_Desc" xml:space="preserve"><value>輝度がこの値以上のピクセルを素材にします。</value></data>
+<data name="ColorMode_MaterialPalette" xml:space="preserve"><value>素材色</value></data>
+<data name="ColorMode_PreserveInput" xml:space="preserve"><value>入力色を維持</value></data>
+<data name="Assignment_ClosestColor" xml:space="preserve"><value>55色から自動判定（1色1素材）</value></data>
+<data name="Assignment_SingleMaterial" xml:space="preserve"><value>単一素材</value></data>
+<data name="ParticleSize_One" xml:space="preserve"><value>1 px（最高精細・高負荷）</value></data>
+<data name="ParticleSize_Two" xml:space="preserve"><value>2 px（高精細）</value></data>
+<data name="ParticleSize_Three" xml:space="preserve"><value>3 px（精細・中負荷）</value></data>
+<data name="ParticleSize_Four" xml:space="preserve"><value>4 px（推奨）</value></data>
+<data name="ParticleSize_Six" xml:space="preserve"><value>6 px（軽量）</value></data>
+<data name="ParticleSize_Eight" xml:space="preserve"><value>8 px（最速）</value></data>
+<data name="SolidMode_Disabled" xml:space="preserve"><value>無効（固定素材は静止）</value></data>
+<data name="SolidMode_Xpbd" xml:space="preserve"><value>GPU XPBD（変形・破断・浮力・反応）</value></data>
+<data name="SourceMode_Snapshot" xml:space="preserve"><value>初期フレームを素材化</value></data>
+<data name="SourceMode_Continuous" xml:space="preserve"><value>空セルに毎フレーム追加</value></data>
+<data name="SourceMode_Stamp" xml:space="preserve"><value>選択位置へ毎フレーム再配置</value></data>
+<data name="MaskMode_Alpha" xml:space="preserve"><value>不透明度</value></data>
+<data name="MaskMode_Luminance" xml:space="preserve"><value>輝度</value></data>
+<data name="MaskMode_Both" xml:space="preserve"><value>不透明度と輝度</value></data>
+<data name="Material_Sand" xml:space="preserve"><value>砂（#f8d878）</value></data>
+<data name="Material_Water" xml:space="preserve"><value>水（#0078f8）</value></data>
+<data name="Material_Salt" xml:space="preserve"><value>塩（#f8f8f8）</value></data>
+<data name="Material_Wood" xml:space="preserve"><value>木（#881400）</value></data>
+<data name="Material_Fire" xml:space="preserve"><value>火（#e45c10）</value></data>
+<data name="Material_Smoke" xml:space="preserve"><value>煙（#787878）</value></data>
+<data name="Material_Ember" xml:space="preserve"><value>残り火（反応・追加素材）</value></data>
+<data name="Material_Steam" xml:space="preserve"><value>水蒸気（#a4e4fc）</value></data>
+<data name="Material_Gunpowder" xml:space="preserve"><value>火薬（反応・追加素材）</value></data>
+<data name="Material_Oil" xml:space="preserve"><value>油（#004058）</value></data>
+<data name="Material_Lava" xml:space="preserve"><value>溶岩（#f83800）</value></data>
+<data name="Material_Stone" xml:space="preserve"><value>石（#7c7c7c）</value></data>
+<data name="Material_Acid" xml:space="preserve"><value>酸（#d800cc）</value></data>
+<data name="Material_Sandstone" xml:space="preserve"><value>砂岩（#f0d0b0）</value></data>
+<data name="Material_Snow" xml:space="preserve"><value>雪（#fcfcfc）</value></data>
+<data name="Material_Coal" xml:space="preserve"><value>石炭（#000000）</value></data>
+<data name="Material_Metal" xml:space="preserve"><value>金属（#bcbcbc）</value></data>
+<data name="Material_Brick" xml:space="preserve"><value>レンガ（#a80020）</value></data>
+<data name="Material_Amethyst" xml:space="preserve"><value>アメジスト（#9878f8）</value></data>
+<data name="Material_Plant" xml:space="preserve"><value>植物（#00b800）</value></data>
+<data name="Material_Slime" xml:space="preserve"><value>スライム（#b8f818）</value></data>
+<data name="Material_Soil" xml:space="preserve"><value>土（#503000）</value></data>
+<data name="Material_Ink" xml:space="preserve"><value>インク（#0000bc）</value></data>
+<data name="Material_OxidizedCopper" xml:space="preserve"><value>酸化銅（#00a844）</value></data>
+<data name="Material_Ice" xml:space="preserve"><value>氷（#00fcfc）</value></data>
+<data name="Material_LiquidNitrogen" xml:space="preserve"><value>液体窒素（#3cbcfc）</value></data>
+<data name="Material_LapisLazuli" xml:space="preserve"><value>ラピスラズリ（#0000fc）</value></data>
+<data name="Material_Permafrost" xml:space="preserve"><value>永久凍土（#b8b8f8）</value></data>
+<data name="Material_CobaltGlass" xml:space="preserve"><value>コバルトガラス（#6888fc）</value></data>
+<data name="Material_Azurite" xml:space="preserve"><value>藍銅鉱（#0058f8）</value></data>
+<data name="Material_Fluorite" xml:space="preserve"><value>蛍石（#d8b8f8）</value></data>
+<data name="Material_Purpur" xml:space="preserve"><value>プルプァブロック（#6844fc）</value></data>
+<data name="Material_Charoite" xml:space="preserve"><value>チャロアイト（#4428bc）</value></data>
+<data name="Material_RoseQuartz" xml:space="preserve"><value>ローズクォーツ（#f8b8f8）</value></data>
+<data name="Material_PinkWax" xml:space="preserve"><value>ピンクワックス（#f878f8）</value></data>
+<data name="Material_PotassiumPermanganate" xml:space="preserve"><value>過マンガン酸カリウム（#940084）</value></data>
+<data name="Material_Coral" xml:space="preserve"><value>サンゴ（#f8a4c0）</value></data>
+<data name="Material_PinkSalt" xml:space="preserve"><value>ピンク岩塩（#f85898）</value></data>
+<data name="Material_Ruby" xml:space="preserve"><value>ルビー（#e40058）</value></data>
+<data name="Material_Copper" xml:space="preserve"><value>銅（#f87858）</value></data>
+<data name="Material_Rust" xml:space="preserve"><value>錆（#a81000）</value></data>
+<data name="Material_Calcite" xml:space="preserve"><value>方解石（#fce0a8）</value></data>
+<data name="Material_Amber" xml:space="preserve"><value>琥珀（#fca044）</value></data>
+<data name="Material_Sulfur" xml:space="preserve"><value>硫黄（#f8b800）</value></data>
+<data name="Material_Gold" xml:space="preserve"><value>金（#ac7c00）</value></data>
+<data name="Material_EndStone" xml:space="preserve"><value>エンドストーン（#d8f878）</value></data>
+<data name="Material_Moss" xml:space="preserve"><value>苔（#007800）</value></data>
+<data name="Material_Jade" xml:space="preserve"><value>翡翠（#b8f8b8）</value></data>
+<data name="Material_Grass" xml:space="preserve"><value>草（#58d854）</value></data>
+<data name="Material_Algae" xml:space="preserve"><value>藻（#00a800）</value></data>
+<data name="Material_Leaf" xml:space="preserve"><value>葉（#006800）</value></data>
+<data name="Material_SeaLantern" xml:space="preserve"><value>シーランタン（#b8f8d8）</value></data>
+<data name="Material_Verdigris" xml:space="preserve"><value>緑青（#58f898）</value></data>
+<data name="Material_PineNeedles" xml:space="preserve"><value>松葉（#005800）</value></data>
+<data name="Material_Prismarine" xml:space="preserve"><value>プリズマリン（#00e8d8）</value></data>
+<data name="Material_SeaWater" xml:space="preserve"><value>海水（#008888）</value></data>
+<data name="Material_Quartz" xml:space="preserve"><value>石英（#f8d8f8）</value></data>
+</root>

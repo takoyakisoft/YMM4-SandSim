@@ -1,0 +1,12 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator/YukkuriMovieMaker.Generator.csproj" />
+  <Project Path="YMM4SandSim.Tests/YMM4SandSim.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="YMM4SandSim/YMM4SandSim.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+  </Project>
+</Solution>

@@ -1,0 +1,387 @@
+[
+  {
+    "hex": "#000000",
+    "id": 16,
+    "name": "Coal",
+    "japanese": "石炭",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#fcfcfc",
+    "id": 15,
+    "name": "Snow",
+    "japanese": "雪",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#f8f8f8",
+    "id": 3,
+    "name": "Salt",
+    "japanese": "塩",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#bcbcbc",
+    "id": 17,
+    "name": "Metal",
+    "japanese": "金属",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#7c7c7c",
+    "id": 12,
+    "name": "Stone",
+    "japanese": "石",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#a4e4fc",
+    "id": 8,
+    "name": "Steam",
+    "japanese": "水蒸気",
+    "behavior": "gas"
+  },
+  {
+    "hex": "#3cbcfc",
+    "id": 26,
+    "name": "LiquidNitrogen",
+    "japanese": "液体窒素",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#0078f8",
+    "id": 2,
+    "name": "Water",
+    "japanese": "水",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#0000fc",
+    "id": 27,
+    "name": "LapisLazuli",
+    "japanese": "ラピスラズリ",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#b8b8f8",
+    "id": 28,
+    "name": "Permafrost",
+    "japanese": "永久凍土",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#6888fc",
+    "id": 29,
+    "name": "CobaltGlass",
+    "japanese": "コバルトガラス",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#0058f8",
+    "id": 30,
+    "name": "Azurite",
+    "japanese": "藍銅鉱",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#0000bc",
+    "id": 23,
+    "name": "Ink",
+    "japanese": "インク",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#d8b8f8",
+    "id": 31,
+    "name": "Fluorite",
+    "japanese": "蛍石",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#9878f8",
+    "id": 19,
+    "name": "Amethyst",
+    "japanese": "アメジスト",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#6844fc",
+    "id": 32,
+    "name": "Purpur",
+    "japanese": "プルプァブロック",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#4428bc",
+    "id": 33,
+    "name": "Charoite",
+    "japanese": "チャロアイト",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#f8b8f8",
+    "id": 34,
+    "name": "RoseQuartz",
+    "japanese": "ローズクォーツ",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#f878f8",
+    "id": 35,
+    "name": "PinkWax",
+    "japanese": "ピンクワックス",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#d800cc",
+    "id": 13,
+    "name": "Acid",
+    "japanese": "酸",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#940084",
+    "id": 36,
+    "name": "PotassiumPermanganate",
+    "japanese": "過マンガン酸カリウム",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#f8a4c0",
+    "id": 37,
+    "name": "Coral",
+    "japanese": "サンゴ",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#f85898",
+    "id": 38,
+    "name": "PinkSalt",
+    "japanese": "ピンク岩塩",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#e40058",
+    "id": 39,
+    "name": "Ruby",
+    "japanese": "ルビー",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#a80020",
+    "id": 18,
+    "name": "Brick",
+    "japanese": "レンガ",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#f0d0b0",
+    "id": 14,
+    "name": "Sandstone",
+    "japanese": "砂岩",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#f87858",
+    "id": 40,
+    "name": "Copper",
+    "japanese": "銅",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#f83800",
+    "id": 11,
+    "name": "Lava",
+    "japanese": "溶岩",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#a81000",
+    "id": 41,
+    "name": "Rust",
+    "japanese": "錆",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#fce0a8",
+    "id": 42,
+    "name": "Calcite",
+    "japanese": "方解石",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#fca044",
+    "id": 43,
+    "name": "Amber",
+    "japanese": "琥珀",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#e45c10",
+    "id": 5,
+    "name": "Fire",
+    "japanese": "火",
+    "behavior": "gas"
+  },
+  {
+    "hex": "#881400",
+    "id": 4,
+    "name": "Wood",
+    "japanese": "木",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#f8d878",
+    "id": 1,
+    "name": "Sand",
+    "japanese": "砂",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#f8b800",
+    "id": 44,
+    "name": "Sulfur",
+    "japanese": "硫黄",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#ac7c00",
+    "id": 45,
+    "name": "Gold",
+    "japanese": "金",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#503000",
+    "id": 22,
+    "name": "Soil",
+    "japanese": "土",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#d8f878",
+    "id": 46,
+    "name": "EndStone",
+    "japanese": "エンドストーン",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#b8f818",
+    "id": 21,
+    "name": "Slime",
+    "japanese": "スライム",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#00b800",
+    "id": 20,
+    "name": "Plant",
+    "japanese": "植物",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#007800",
+    "id": 47,
+    "name": "Moss",
+    "japanese": "苔",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#b8f8b8",
+    "id": 48,
+    "name": "Jade",
+    "japanese": "翡翠",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#58d854",
+    "id": 49,
+    "name": "Grass",
+    "japanese": "草",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#00a800",
+    "id": 50,
+    "name": "Algae",
+    "japanese": "藻",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#006800",
+    "id": 51,
+    "name": "Leaf",
+    "japanese": "葉",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#b8f8d8",
+    "id": 52,
+    "name": "SeaLantern",
+    "japanese": "シーランタン",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#58f898",
+    "id": 53,
+    "name": "Verdigris",
+    "japanese": "緑青",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#00a844",
+    "id": 24,
+    "name": "OxidizedCopper",
+    "japanese": "酸化銅",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#005800",
+    "id": 54,
+    "name": "PineNeedles",
+    "japanese": "松葉",
+    "behavior": "powder"
+  },
+  {
+    "hex": "#00fcfc",
+    "id": 25,
+    "name": "Ice",
+    "japanese": "氷",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#00e8d8",
+    "id": 55,
+    "name": "Prismarine",
+    "japanese": "プリズマリン",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#008888",
+    "id": 56,
+    "name": "SeaWater",
+    "japanese": "海水",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#004058",
+    "id": 10,
+    "name": "Oil",
+    "japanese": "油",
+    "behavior": "liquid"
+  },
+  {
+    "hex": "#f8d8f8",
+    "id": 57,
+    "name": "Quartz",
+    "japanese": "石英",
+    "behavior": "fixed"
+  },
+  {
+    "hex": "#787878",
+    "id": 6,
+    "name": "Smoke",
+    "japanese": "煙",
+    "behavior": "gas"
+  }
+]

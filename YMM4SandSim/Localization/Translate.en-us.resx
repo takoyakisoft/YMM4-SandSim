@@ -1,0 +1,201 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+<data name="CurrentCulture" xml:space="preserve"><value>en-us</value></data>
+<data name="Plugin_Name" xml:space="preserve"><value>Sand Simulation</value></data>
+<data name="Group_Basic" xml:space="preserve"><value>Basic</value></data>
+<data name="Group_Material" xml:space="preserve"><value>Material</value></data>
+<data name="Group_Simulation" xml:space="preserve"><value>Simulation</value></data>
+<data name="Group_SolidPhysics" xml:space="preserve"><value>Solid Physics</value></data>
+<data name="Group_Explosion" xml:space="preserve"><value>Explosion</value></data>
+<data name="Group_Lighting" xml:space="preserve"><value>Lighting</value></data>
+<data name="Group_Extraction" xml:space="preserve"><value>Extraction</value></data>
+<data name="ScreenSize_Name" xml:space="preserve"><value>Screen Size</value></data>
+<data name="ScreenSize_Desc" xml:space="preserve"><value>Runs the simulation at the screen size.</value></data>
+<data name="SourceMode_Name" xml:space="preserve"><value>Input Mode</value></data>
+<data name="SourceMode_Desc" xml:space="preserve"><value>Selects initial-frame capture, continuous filling of empty cells, or restamping selected positions every frame. XPBD solids use one slot per input cell and are not duplicated by continuous input.</value></data>
+<data name="ParticleSize_Name" xml:space="preserve"><value>Particle Size</value></data>
+<data name="ParticleSize_Desc" xml:space="preserve"><value>Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 150 MiB. The state budget is about 304 MiB.</value></data>
+<data name="MaterialAssignment_Name" xml:space="preserve"><value>Material Assignment</value></data>
+<data name="MaterialAssignment_Desc" xml:space="preserve"><value>Classifies the source into 55 colors mapped one-to-one to physical materials, or converts it to one material.</value></data>
+<data name="SingleMaterial_Name" xml:space="preserve"><value>Single Material</value></data>
+<data name="SingleMaterial_Desc" xml:space="preserve"><value>Selects the material used by Single Material assignment.</value></data>
+<data name="ColorMode_Name" xml:space="preserve"><value>Display Color</value></data>
+<data name="ColorMode_Desc" xml:space="preserve"><value>Displays either the original source colors or the classified material palette.</value></data>
+<data name="Iterations_Name" xml:space="preserve"><value>Update Count</value></data>
+<data name="Iterations_Desc" xml:space="preserve"><value>Sets simulation updates per frame. Higher values advance faster and increase GPU load.</value></data>
+<data name="Warmup_Name" xml:space="preserve"><value>Initial Update Count</value></data>
+<data name="Warmup_Desc" xml:space="preserve"><value>Sets additional updates immediately after initialization. Higher values increase first-frame GPU load.</value></data>
+<data name="Spread_Name" xml:space="preserve"><value>Fluidity</value></data>
+<data name="Spread_Desc" xml:space="preserve"><value>Controls diagonal powder movement and horizontal spreading of liquids and gases.</value></data>
+<data name="ReactionStrength_Name" xml:space="preserve"><value>Reaction Strength</value></data>
+<data name="ReactionStrength_Desc" xml:space="preserve"><value>Sets combustion, evaporation, dissolution, corrosion, smoke and other reactions. 100% is standard; 0% stops material reactions.</value></data>
+<data name="SolidMode_Name" xml:space="preserve"><value>Method</value></data>
+<data name="SolidMode_Desc" xml:space="preserve"><value>Moves fixed materials to a GPU XPBD grid for material-specific mass</value></data>
+<data name="Gravity_Name" xml:space="preserve"><value>Gravity</value></data>
+<data name="Gravity_Desc" xml:space="preserve"><value>Sets gravity applied to XPBD solids. 100% is standard. Buoyancy is also applied in liquids according to material density.</value></data>
+<data name="Stiffness_Name" xml:space="preserve"><value>Stiffness</value></data>
+<data name="Stiffness_Desc" xml:space="preserve"><value>Sets material stiffness. 100% is standard; higher values preserve shape more strongly.</value></data>
+<data name="BreakStrength_Name" xml:space="preserve"><value>Fracture Strength</value></data>
+<data name="BreakStrength_Desc" xml:space="preserve"><value>Sets material resistance to fracture. 100% is standard; higher values make breaking and tearing less likely.</value></data>
+<data name="SolverIterations_Name" xml:space="preserve"><value>Solver Iterations</value></data>
+<data name="SolverIterations_Desc" xml:space="preserve"><value>Sets XPBD solver iterations. Higher values stabilize stiff materials and increase GPU load.</value></data>
+<data name="ExplosionController_Name" xml:space="preserve"><value>Control Points</value></data>
+<data name="ExplosionController_Desc" xml:space="preserve"><value>Shows explosion center and radius control points in the preview. Drag the center to move it and the right point to change radius.</value></data>
+<data name="ExplosionX_Name" xml:space="preserve"><value>Center X</value></data>
+<data name="ExplosionX_Desc" xml:space="preserve"><value>Sets the explosion center X coordinate relative to the item center.</value></data>
+<data name="ExplosionY_Name" xml:space="preserve"><value>Center Y</value></data>
+<data name="ExplosionY_Desc" xml:space="preserve"><value>Sets the explosion center Y coordinate relative to the item center.</value></data>
+<data name="ExplosionFrame_Name" xml:space="preserve"><value>Trigger Frame</value></data>
+<data name="ExplosionFrame_Desc" xml:space="preserve"><value>Sets the frame after the effect starts at which the explosion triggers. Re-evaluating the same frame does not trigger it twice.</value></data>
+<data name="ExplosionStrength_Name" xml:space="preserve"><value>Strength</value></data>
+<data name="ExplosionStrength_Desc" xml:space="preserve"><value>Sets explosion pressure strength. 100% is standard; 0% disables pressure waves</value></data>
+<data name="ExplosionRadius_Name" xml:space="preserve"><value>Radius</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>Sets the approximate pressure-wave radius in cells. Pressure propagates on each update as a shock wave.</value></data>
+<data name="LightingStrength_Name" xml:space="preserve"><value>Strength</value></data>
+<data name="LightingStrength_Desc" xml:space="preserve"><value>Sets light strength from fire, embers, lava, sea lanterns and explosions. 100% is standard; 0% disables lighting.</value></data>
+<data name="LightingRadius_Name" xml:space="preserve"><value>Radius</value></data>
+<data name="LightingRadius_Desc" xml:space="preserve"><value>Sets the lighting radius in cells. Higher values illuminate farther and increase GPU load.</value></data>
+<data name="AmbientLight_Name" xml:space="preserve"><value>Brightness</value></data>
+<data name="AmbientLight_Desc" xml:space="preserve"><value>Sets brightness in unlit areas. 100% preserves source brightness; lower values create darker areas.</value></data>
+<data name="ShadowStrength_Name" xml:space="preserve"><value>Shadow Strength</value></data>
+<data name="ShadowStrength_Desc" xml:space="preserve"><value>Sets how strongly materials block light. At 0% light passes through; at 100% material shadows are strongest.</value></data>
+<data name="MaskMode_Name" xml:space="preserve"><value>Extraction Method</value></data>
+<data name="MaskMode_Desc" xml:space="preserve"><value>Selects how pixels are chosen for conversion into materials.</value></data>
+<data name="AlphaThreshold_Name" xml:space="preserve"><value>Opacity Threshold</value></data>
+<data name="AlphaThreshold_Desc" xml:space="preserve"><value>Converts pixels whose opacity is at or above this value.</value></data>
+<data name="LuminanceThreshold_Name" xml:space="preserve"><value>Luminance Threshold</value></data>
+<data name="LuminanceThreshold_Desc" xml:space="preserve"><value>Converts pixels whose luminance is at or above this value.</value></data>
+<data name="ColorMode_MaterialPalette" xml:space="preserve"><value>Material Palette</value></data>
+<data name="ColorMode_PreserveInput" xml:space="preserve"><value>Preserve Input Colors</value></data>
+<data name="Assignment_ClosestColor" xml:space="preserve"><value>Auto-detect from 55 colors (one material per color)</value></data>
+<data name="Assignment_SingleMaterial" xml:space="preserve"><value>Single Material</value></data>
+<data name="ParticleSize_One" xml:space="preserve"><value>1 px (highest detail / high load)</value></data>
+<data name="ParticleSize_Two" xml:space="preserve"><value>2 px (high detail)</value></data>
+<data name="ParticleSize_Three" xml:space="preserve"><value>3 px (detailed / medium load)</value></data>
+<data name="ParticleSize_Four" xml:space="preserve"><value>4 px (recommended)</value></data>
+<data name="ParticleSize_Six" xml:space="preserve"><value>6 px (lightweight)</value></data>
+<data name="ParticleSize_Eight" xml:space="preserve"><value>8 px (fastest)</value></data>
+<data name="SolidMode_Disabled" xml:space="preserve"><value>Disabled (fixed materials remain still)</value></data>
+<data name="SolidMode_Xpbd" xml:space="preserve"><value>GPU XPBD (deformation / fracture / buoyancy / reactions)</value></data>
+<data name="SourceMode_Snapshot" xml:space="preserve"><value>Capture Initial Frame</value></data>
+<data name="SourceMode_Continuous" xml:space="preserve"><value>Add to Empty Cells Every Frame</value></data>
+<data name="SourceMode_Stamp" xml:space="preserve"><value>Restamp Selected Positions Every Frame</value></data>
+<data name="MaskMode_Alpha" xml:space="preserve"><value>Opacity</value></data>
+<data name="MaskMode_Luminance" xml:space="preserve"><value>Luminance</value></data>
+<data name="MaskMode_Both" xml:space="preserve"><value>Opacity and Luminance</value></data>
+<data name="Material_Sand" xml:space="preserve"><value>Sand (#f8d878)</value></data>
+<data name="Material_Water" xml:space="preserve"><value>Water (#0078f8)</value></data>
+<data name="Material_Salt" xml:space="preserve"><value>Salt (#f8f8f8)</value></data>
+<data name="Material_Wood" xml:space="preserve"><value>Wood (#881400)</value></data>
+<data name="Material_Fire" xml:space="preserve"><value>Fire (#e45c10)</value></data>
+<data name="Material_Smoke" xml:space="preserve"><value>Smoke (#787878)</value></data>
+<data name="Material_Ember" xml:space="preserve"><value>Ember (reaction/support material)</value></data>
+<data name="Material_Steam" xml:space="preserve"><value>Steam (#a4e4fc)</value></data>
+<data name="Material_Gunpowder" xml:space="preserve"><value>Gunpowder (reaction/support material)</value></data>
+<data name="Material_Oil" xml:space="preserve"><value>Oil (#004058)</value></data>
+<data name="Material_Lava" xml:space="preserve"><value>Lava (#f83800)</value></data>
+<data name="Material_Stone" xml:space="preserve"><value>Stone (#7c7c7c)</value></data>
+<data name="Material_Acid" xml:space="preserve"><value>Acid (#d800cc)</value></data>
+<data name="Material_Sandstone" xml:space="preserve"><value>Sandstone (#f0d0b0)</value></data>
+<data name="Material_Snow" xml:space="preserve"><value>Snow (#fcfcfc)</value></data>
+<data name="Material_Coal" xml:space="preserve"><value>Coal (#000000)</value></data>
+<data name="Material_Metal" xml:space="preserve"><value>Metal (#bcbcbc)</value></data>
+<data name="Material_Brick" xml:space="preserve"><value>Brick (#a80020)</value></data>
+<data name="Material_Amethyst" xml:space="preserve"><value>Amethyst (#9878f8)</value></data>
+<data name="Material_Plant" xml:space="preserve"><value>Plant (#00b800)</value></data>
+<data name="Material_Slime" xml:space="preserve"><value>Slime (#b8f818)</value></data>
+<data name="Material_Soil" xml:space="preserve"><value>Soil (#503000)</value></data>
+<data name="Material_Ink" xml:space="preserve"><value>Ink (#0000bc)</value></data>
+<data name="Material_OxidizedCopper" xml:space="preserve"><value>Oxidized Copper (#00a844)</value></data>
+<data name="Material_Ice" xml:space="preserve"><value>Ice (#00fcfc)</value></data>
+<data name="Material_LiquidNitrogen" xml:space="preserve"><value>Liquid Nitrogen (#3cbcfc)</value></data>
+<data name="Material_LapisLazuli" xml:space="preserve"><value>Lapis Lazuli (#0000fc)</value></data>
+<data name="Material_Permafrost" xml:space="preserve"><value>Permafrost (#b8b8f8)</value></data>
+<data name="Material_CobaltGlass" xml:space="preserve"><value>Cobalt Glass (#6888fc)</value></data>
+<data name="Material_Azurite" xml:space="preserve"><value>Azurite (#0058f8)</value></data>
+<data name="Material_Fluorite" xml:space="preserve"><value>Fluorite (#d8b8f8)</value></data>
+<data name="Material_Purpur" xml:space="preserve"><value>Purpur Block (#6844fc)</value></data>
+<data name="Material_Charoite" xml:space="preserve"><value>Charoite (#4428bc)</value></data>
+<data name="Material_RoseQuartz" xml:space="preserve"><value>Rose Quartz (#f8b8f8)</value></data>
+<data name="Material_PinkWax" xml:space="preserve"><value>Pink Wax (#f878f8)</value></data>
+<data name="Material_PotassiumPermanganate" xml:space="preserve"><value>Potassium Permanganate (#940084)</value></data>
+<data name="Material_Coral" xml:space="preserve"><value>Coral (#f8a4c0)</value></data>
+<data name="Material_PinkSalt" xml:space="preserve"><value>Pink Salt (#f85898)</value></data>
+<data name="Material_Ruby" xml:space="preserve"><value>Ruby (#e40058)</value></data>
+<data name="Material_Copper" xml:space="preserve"><value>Copper (#f87858)</value></data>
+<data name="Material_Rust" xml:space="preserve"><value>Rust (#a81000)</value></data>
+<data name="Material_Calcite" xml:space="preserve"><value>Calcite (#fce0a8)</value></data>
+<data name="Material_Amber" xml:space="preserve"><value>Amber (#fca044)</value></data>
+<data name="Material_Sulfur" xml:space="preserve"><value>Sulfur (#f8b800)</value></data>
+<data name="Material_Gold" xml:space="preserve"><value>Gold (#ac7c00)</value></data>
+<data name="Material_EndStone" xml:space="preserve"><value>End Stone (#d8f878)</value></data>
+<data name="Material_Moss" xml:space="preserve"><value>Moss (#007800)</value></data>
+<data name="Material_Jade" xml:space="preserve"><value>Jade (#b8f8b8)</value></data>
+<data name="Material_Grass" xml:space="preserve"><value>Grass (#58d854)</value></data>
+<data name="Material_Algae" xml:space="preserve"><value>Algae (#00a800)</value></data>
+<data name="Material_Leaf" xml:space="preserve"><value>Leaf (#006800)</value></data>
+<data name="Material_SeaLantern" xml:space="preserve"><value>Sea Lantern (#b8f8d8)</value></data>
+<data name="Material_Verdigris" xml:space="preserve"><value>Verdigris (#58f898)</value></data>
+<data name="Material_PineNeedles" xml:space="preserve"><value>Pine Needles (#005800)</value></data>
+<data name="Material_Prismarine" xml:space="preserve"><value>Prismarine (#00e8d8)</value></data>
+<data name="Material_SeaWater" xml:space="preserve"><value>Sea Water (#008888)</value></data>
+<data name="Material_Quartz" xml:space="preserve"><value>Quartz (#f8d8f8)</value></data>
+</root>

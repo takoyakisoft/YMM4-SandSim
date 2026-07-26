@@ -1,0 +1,128 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Platforms>AnyCPU;x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AssemblyName>YMM4SandSim</AssemblyName>
+    <RootNamespace>YMM4SandSim</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <AdditionalFiles Include="Localization\**\*.csv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <HlslShader Include="Shaders\SandInitialize.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandStep.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandRigidInitialize.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandRigidIntegrate.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandRigidSolve.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandRigidGrid.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandRigidReact.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandExplosionUpdate.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandLightSeed.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandLightPropagate.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandFullscreenVS.hlsl">
+      <ShaderType>vs_5_0</ShaderType>
+    </HlslShader>
+    <HlslShader Include="Shaders\SandRenderPS.hlsl">
+      <ShaderType>ps_5_0</ShaderType>
+    </HlslShader>
+    <ShaderInclude Include="Shaders\**\*.hlsli" />
+    <EmbeddedResource Include="@(HlslShader->'%(RelativeDir)%(Filename).cso')">
+      <LogicalName>YMM4SandSim.Shaders.%(Filename).cso</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemDefinitionGroup>
+    <HlslShader>
+      <EntryPoint>main</EntryPoint>
+      <ObjectFileOutput>%(RelativeDir)%(Filename).cso</ObjectFileOutput>
+    </HlslShader>
+  </ItemDefinitionGroup>
+
+  <Target Name="CompileHLSLShaders" BeforeTargets="BeforeBuild" Inputs="@(HlslShader);@(ShaderInclude)" Outputs="@(HlslShader->'%(ObjectFileOutput)')">
+    <Message Text="Compiling HLSL shaders in parallel with FXC /O3" Importance="high" />
+    <Error Text="fxc.exe not found at path: $(FxcPath)" Condition="!Exists('$(FxcPath)') AND '$(FxcPath)' != 'fxc.exe'" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\scripts\dev.ps1&quot; shaders" />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="SharpGen.Runtime">
+      <HintPath>$(YMM4DirPath)SharpGen.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpGen.Runtime.COM">
+      <HintPath>$(YMM4DirPath)SharpGen.Runtime.COM.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Vortice.Direct2D1">
+      <HintPath>$(YMM4DirPath)Vortice.Direct2D1.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Vortice.Direct3D11">
+      <HintPath>$(YMM4DirPath)Vortice.Direct3D11.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Vortice.DirectX">
+      <HintPath>$(YMM4DirPath)Vortice.DirectX.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Vortice.DXGI">
+      <HintPath>$(YMM4DirPath)Vortice.DXGI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Vortice.Mathematics">
+      <HintPath>$(YMM4DirPath)Vortice.Mathematics.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="YukkuriMovieMaker">
+      <HintPath>$(YMM4DirPath)YukkuriMovieMaker.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="YukkuriMovieMaker.Controls">
+      <HintPath>$(YMM4DirPath)YukkuriMovieMaker.Controls.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="YukkuriMovieMaker.Plugin">
+      <HintPath>$(YMM4DirPath)YukkuriMovieMaker.Plugin.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="DeployPlugin" AfterTargets="Build" Condition="'$(SkipPluginDeploy)' != 'true' AND Exists('$(YMM4DirPath)')">
+    <MakeDir Directories="$(YMM4DirPath)user\plugin\YMM4SandSim" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(YMM4DirPath)user\plugin\YMM4SandSim" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

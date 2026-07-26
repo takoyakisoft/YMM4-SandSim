@@ -1,0 +1,140 @@
+Key,comment,ja-jp,en-us
+Plugin_Name,name,サンドシミュレーション,Sand Simulation
+Group_Basic,group,基本,Basic
+Group_Material,group,素材,Material
+Group_Simulation,group,シミュレーション,Simulation
+Group_SolidPhysics,group,固体物理,Solid Physics
+Group_Explosion,group,爆発,Explosion
+Group_Lighting,group,ライト,Lighting
+Group_Extraction,group,抽出,Extraction
+ScreenSize_Name,name,スクリーンサイズ,Screen Size
+ScreenSize_Desc,desc,画面サイズに合わせてシミュレーションします。,Runs the simulation at the screen size.
+SourceMode_Name,name,入力モード,Input Mode
+SourceMode_Desc,desc,初期フレームのみ素材化、空セルへの継続追加、選択位置への毎フレーム再配置を選びます。XPBD固定素材は1入力セル1スロットのため、継続追加では同じソースセルから重複生成しません。,"Selects initial-frame capture, continuous filling of empty cells, or restamping selected positions every frame. XPBD solids use one slot per input cell and are not duplicated by continuous input."
+ParticleSize_Name,name,粒のサイズ,Particle Size
+ParticleSize_Desc,desc,1セルに対応するピクセル数を指定します。大きいほど高速でGPUメモリを節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・ライト有効時は約150 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。,"Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 150 MiB. The state budget is about 304 MiB."
+MaterialAssignment_Name,name,素材の割り当て,Material Assignment
+MaterialAssignment_Desc,desc,入力色を55色へ分類し、各色に1種類だけ割り当てた物理素材へ変換するか、単一素材へ変換します。,"Classifies the source into 55 colors mapped one-to-one to physical materials, or converts it to one material."
+SingleMaterial_Name,name,単一素材,Single Material
+SingleMaterial_Desc,desc,「単一素材」を選んだ場合に使用する素材です。,Selects the material used by Single Material assignment.
+ColorMode_Name,name,表示色,Display Color
+ColorMode_Desc,desc,入力画像の色を保持するか、分類に使用した素材色で表示します。,Displays either the original source colors or the classified material palette.
+Iterations_Name,name,更新回数,Update Count
+Iterations_Desc,desc,1フレームあたりの更新回数を指定します。増やすほどシミュレーションが速く進み、GPU負荷も増えます。,Sets simulation updates per frame. Higher values advance faster and increase GPU load.
+Warmup_Name,name,初期更新回数,Initial Update Count
+Warmup_Desc,desc,初期化直後に追加で進める更新回数を指定します。増やすほど最初のフレームのGPU負荷が増えます。,Sets additional updates immediately after initialization. Higher values increase first-frame GPU load.
+Spread_Name,name,流動性,Fluidity
+Spread_Desc,desc,粉体の斜め移動と液体・気体の横方向への広がりやすさです。,Controls diagonal powder movement and horizontal spreading of liquids and gases.
+ReactionStrength_Name,name,反応の強さ,Reaction Strength
+ReactionStrength_Desc,desc,燃焼、蒸発、溶解、腐食、発煙などの反応の強さを指定します。100%が標準、0%で素材間の反応を停止します。,"Sets combustion, evaporation, dissolution, corrosion, smoke and other reactions. 100% is standard; 0% stops material reactions."
+SolidMode_Name,name,方式,Method
+SolidMode_Desc,desc,固定素材をGPU XPBD格子へ移し、素材別の質量・剛性・破断を使って落下・変形・衝突させます。,Moves fixed materials to a GPU XPBD grid for material-specific mass, stiffness, fracture, falling, deformation and collision.
+Gravity_Name,name,重力,Gravity
+Gravity_Desc,desc,XPBD固体に加える重力を指定します。100%が標準です。液体中では素材の密度に応じて浮力も加わります。,Sets gravity applied to XPBD solids. 100% is standard. Buoyancy is also applied in liquids according to material density.
+Stiffness_Name,name,剛性,Stiffness
+Stiffness_Desc,desc,素材固有の硬さを指定します。100%が標準で、大きいほど形状を保ちやすくなります。,Sets material stiffness. 100% is standard; higher values preserve shape more strongly.
+BreakStrength_Name,name,破断の強さ,Fracture Strength
+BreakStrength_Desc,desc,素材固有の壊れにくさを指定します。100%が標準で、大きいほど割れたりちぎれたりしにくくなります。,Sets material resistance to fracture. 100% is standard; higher values make breaking and tearing less likely.
+SolverIterations_Name,name,反復回数,Solver Iterations
+SolverIterations_Desc,desc,XPBDの計算を繰り返す回数を指定します。増やすほど硬い素材が安定し、GPU負荷も増えます。,Sets XPBD solver iterations. Higher values stabilize stiff materials and increase GPU load.
+ExplosionController_Name,name,制御点,Control Points
+ExplosionController_Desc,desc,プレビューに爆発の中心と半径の制御点を表示します。中心の制御点で位置、右側の制御点で半径を変更できます。,Shows explosion center and radius control points in the preview. Drag the center to move it and the right point to change radius.
+ExplosionX_Name,name,中心X,Center X
+ExplosionX_Desc,desc,アイテムの中心を基準とした爆発の中心座標Xを指定します。,Sets the explosion center X coordinate relative to the item center.
+ExplosionY_Name,name,中心Y,Center Y
+ExplosionY_Desc,desc,アイテムの中心を基準とした爆発の中心座標Yを指定します。,Sets the explosion center Y coordinate relative to the item center.
+ExplosionFrame_Name,name,発火フレーム,Trigger Frame
+ExplosionFrame_Desc,desc,エフェクトの開始から何フレーム目に爆発させるかを指定します。同じフレームを再評価しても重複して爆発しません。,Sets the frame after the effect starts at which the explosion triggers. Re-evaluating the same frame does not trigger it twice.
+ExplosionStrength_Name,name,強さ,Strength
+ExplosionStrength_Desc,desc,爆発による圧力波の強さを指定します。100%が標準です。0%で圧力波、衝撃、爆発光を無効化します。,Sets explosion pressure strength. 100% is standard; 0% disables pressure waves, impact and explosion light.
+ExplosionRadius_Name,name,半径,Radius
+ExplosionRadius_Desc,desc,圧力波が広がる目安の半径をセル単位で指定します。圧力は更新ごとに伝わり、衝撃波として広がります。,Sets the approximate pressure-wave radius in cells. Pressure propagates on each update as a shock wave.
+LightingStrength_Name,name,強さ,Strength
+LightingStrength_Desc,desc,火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%でライトを無効化します。,"Sets light strength from fire, embers, lava, sea lanterns and explosions. 100% is standard; 0% disables lighting."
+LightingRadius_Name,name,半径,Radius
+LightingRadius_Desc,desc,光が届く半径をセル単位で指定します。大きいほど広く照らし、GPU負荷も増えます。,Sets the lighting radius in cells. Higher values illuminate farther and increase GPU load.
+AmbientLight_Name,name,明るさ,Brightness
+AmbientLight_Desc,desc,ライトが当たっていない部分の明るさを指定します。100%で元の明るさを維持し、小さくすると暗い部分が増えます。,Sets brightness in unlit areas. 100% preserves source brightness; lower values create darker areas.
+ShadowStrength_Name,name,影の強さ,Shadow Strength
+ShadowStrength_Desc,desc,素材が光を遮る強さを指定します。0%で光が素材を透過し、100%で素材固有の影を最大にします。,Sets how strongly materials block light. At 0% light passes through; at 100% material shadows are strongest.
+MaskMode_Name,name,抽出方法,Extraction Method
+MaskMode_Desc,desc,素材へ変換する画素の判定方法です。,Selects how pixels are chosen for conversion into materials.
+AlphaThreshold_Name,name,不透明度の閾値,Opacity Threshold
+AlphaThreshold_Desc,desc,不透明度がこの値以上のピクセルを素材にします。,Converts pixels whose opacity is at or above this value.
+LuminanceThreshold_Name,name,輝度の閾値,Luminance Threshold
+LuminanceThreshold_Desc,desc,輝度がこの値以上のピクセルを素材にします。,Converts pixels whose luminance is at or above this value.
+ColorMode_MaterialPalette,enum,素材色,Material Palette
+ColorMode_PreserveInput,enum,入力色を維持,Preserve Input Colors
+Assignment_ClosestColor,enum,55色から自動判定（1色1素材）,Auto-detect from 55 colors (one material per color)
+Assignment_SingleMaterial,enum,単一素材,Single Material
+ParticleSize_One,enum,1 px（最高精細・高負荷）,1 px (highest detail / high load)
+ParticleSize_Two,enum,2 px（高精細）,2 px (high detail)
+ParticleSize_Three,enum,3 px（精細・中負荷）,3 px (detailed / medium load)
+ParticleSize_Four,enum,4 px（推奨）,4 px (recommended)
+ParticleSize_Six,enum,6 px（軽量）,6 px (lightweight)
+ParticleSize_Eight,enum,8 px（最速）,8 px (fastest)
+SolidMode_Disabled,enum,無効（固定素材は静止）,Disabled (fixed materials remain still)
+SolidMode_Xpbd,enum,GPU XPBD（変形・破断・浮力・反応）,GPU XPBD (deformation / fracture / buoyancy / reactions)
+SourceMode_Snapshot,enum,初期フレームを素材化,Capture Initial Frame
+SourceMode_Continuous,enum,空セルに毎フレーム追加,Add to Empty Cells Every Frame
+SourceMode_Stamp,enum,選択位置へ毎フレーム再配置,Restamp Selected Positions Every Frame
+MaskMode_Alpha,enum,不透明度,Opacity
+MaskMode_Luminance,enum,輝度,Luminance
+MaskMode_Both,enum,不透明度と輝度,Opacity and Luminance
+Material_Sand,enum,砂（#f8d878）,Sand (#f8d878)
+Material_Water,enum,水（#0078f8）,Water (#0078f8)
+Material_Salt,enum,塩（#f8f8f8）,Salt (#f8f8f8)
+Material_Wood,enum,木（#881400）,Wood (#881400)
+Material_Fire,enum,火（#e45c10）,Fire (#e45c10)
+Material_Smoke,enum,煙（#787878）,Smoke (#787878)
+Material_Ember,enum,残り火（反応・追加素材）,Ember (reaction/support material)
+Material_Steam,enum,水蒸気（#a4e4fc）,Steam (#a4e4fc)
+Material_Gunpowder,enum,火薬（反応・追加素材）,Gunpowder (reaction/support material)
+Material_Oil,enum,油（#004058）,Oil (#004058)
+Material_Lava,enum,溶岩（#f83800）,Lava (#f83800)
+Material_Stone,enum,石（#7c7c7c）,Stone (#7c7c7c)
+Material_Acid,enum,酸（#d800cc）,Acid (#d800cc)
+Material_Sandstone,enum,砂岩（#f0d0b0）,Sandstone (#f0d0b0)
+Material_Snow,enum,雪（#fcfcfc）,Snow (#fcfcfc)
+Material_Coal,enum,石炭（#000000）,Coal (#000000)
+Material_Metal,enum,金属（#bcbcbc）,Metal (#bcbcbc)
+Material_Brick,enum,レンガ（#a80020）,Brick (#a80020)
+Material_Amethyst,enum,アメジスト（#9878f8）,Amethyst (#9878f8)
+Material_Plant,enum,植物（#00b800）,Plant (#00b800)
+Material_Slime,enum,スライム（#b8f818）,Slime (#b8f818)
+Material_Soil,enum,土（#503000）,Soil (#503000)
+Material_Ink,enum,インク（#0000bc）,Ink (#0000bc)
+Material_OxidizedCopper,enum,酸化銅（#00a844）,Oxidized Copper (#00a844)
+Material_Ice,enum,氷（#00fcfc）,Ice (#00fcfc)
+Material_LiquidNitrogen,enum,液体窒素（#3cbcfc）,Liquid Nitrogen (#3cbcfc)
+Material_LapisLazuli,enum,ラピスラズリ（#0000fc）,Lapis Lazuli (#0000fc)
+Material_Permafrost,enum,永久凍土（#b8b8f8）,Permafrost (#b8b8f8)
+Material_CobaltGlass,enum,コバルトガラス（#6888fc）,Cobalt Glass (#6888fc)
+Material_Azurite,enum,藍銅鉱（#0058f8）,Azurite (#0058f8)
+Material_Fluorite,enum,蛍石（#d8b8f8）,Fluorite (#d8b8f8)
+Material_Purpur,enum,プルプァブロック（#6844fc）,Purpur Block (#6844fc)
+Material_Charoite,enum,チャロアイト（#4428bc）,Charoite (#4428bc)
+Material_RoseQuartz,enum,ローズクォーツ（#f8b8f8）,Rose Quartz (#f8b8f8)
+Material_PinkWax,enum,ピンクワックス（#f878f8）,Pink Wax (#f878f8)
+Material_PotassiumPermanganate,enum,過マンガン酸カリウム（#940084）,Potassium Permanganate (#940084)
+Material_Coral,enum,サンゴ（#f8a4c0）,Coral (#f8a4c0)
+Material_PinkSalt,enum,ピンク岩塩（#f85898）,Pink Salt (#f85898)
+Material_Ruby,enum,ルビー（#e40058）,Ruby (#e40058)
+Material_Copper,enum,銅（#f87858）,Copper (#f87858)
+Material_Rust,enum,錆（#a81000）,Rust (#a81000)
+Material_Calcite,enum,方解石（#fce0a8）,Calcite (#fce0a8)
+Material_Amber,enum,琥珀（#fca044）,Amber (#fca044)
+Material_Sulfur,enum,硫黄（#f8b800）,Sulfur (#f8b800)
+Material_Gold,enum,金（#ac7c00）,Gold (#ac7c00)
+Material_EndStone,enum,エンドストーン（#d8f878）,End Stone (#d8f878)
+Material_Moss,enum,苔（#007800）,Moss (#007800)
+Material_Jade,enum,翡翠（#b8f8b8）,Jade (#b8f8b8)
+Material_Grass,enum,草（#58d854）,Grass (#58d854)
+Material_Algae,enum,藻（#00a800）,Algae (#00a800)
+Material_Leaf,enum,葉（#006800）,Leaf (#006800)
+Material_SeaLantern,enum,シーランタン（#b8f8d8）,Sea Lantern (#b8f8d8)
+Material_Verdigris,enum,緑青（#58f898）,Verdigris (#58f898)
+Material_PineNeedles,enum,松葉（#005800）,Pine Needles (#005800)
+Material_Prismarine,enum,プリズマリン（#00e8d8）,Prismarine (#00e8d8)
+Material_SeaWater,enum,海水（#008888）,Sea Water (#008888)
+Material_Quartz,enum,石英（#f8d8f8）,Quartz (#f8d8f8)

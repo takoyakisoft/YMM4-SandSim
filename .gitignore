@@ -1,0 +1,10 @@
+/Directory.Build.props
+.vs/
+**/bin/
+**/obj/
+**/*.user
+YMM4SandSim/Shaders/*.cso
+artifacts/
+YMM4/
+YMM4Download/
+*.log

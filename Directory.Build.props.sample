@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Copy this file to Directory.Build.props and edit only the copy.
+    Directory.Build.props is ignored by Git because these values are machine-local.
+  -->
+  <PropertyGroup>
+    <YMM4DirPath>PATH_TO_YMM4\</YMM4DirPath>
+    <FxcPath>PATH_TO_FXC_EXE</FxcPath>
+    <DotnetPath>PATH_TO_DOTNET_EXE</DotnetPath>
+    <PythonPath>PATH_TO_PYTHON_EXE</PythonPath>
+  </PropertyGroup>
+</Project>

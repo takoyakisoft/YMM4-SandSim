@@ -1,0 +1,113 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-2025
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read package version
+        id: package-version
+        shell: pwsh
+        run: |
+          $versionXml = [xml](Get-Content -LiteralPath ".\Directory.Build.targets" -Raw)
+          $versionNode = $versionXml.SelectSingleNode("/Project/PropertyGroup/YMM4SandSimVersion")
+          $version = if ($null -eq $versionNode) { "" } else { $versionNode.InnerText.Trim() }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "YMM4SandSimVersion was not found in Directory.Build.targets."
+          }
+
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $expectedTag = "v$version"
+            if ("${{ github.ref_name }}" -ne $expectedTag) {
+              throw "Tag/version mismatch. Tag=${{ github.ref_name }} Expected=$expectedTag"
+            }
+          }
+
+          "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Download latest YMM4
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $release = gh release view --repo manju-summoner/YukkuriMovieMaker4 --json tagName,assets | ConvertFrom-Json
+          $asset = $release.assets |
+            Where-Object { $_.name -match '^YukkuriMovieMaker_v.*\.zip$' -and $_.name -notmatch '_Lite\.zip$' } |
+            Select-Object -First 1
+          if ($null -eq $asset) {
+            throw "Non-Lite YMM4 ZIP asset was not found in release $($release.tagName)."
+          }
+
+          New-Item -ItemType Directory -Force -Path ".\YMM4Download" | Out-Null
+          gh release download $release.tagName --repo manju-summoner/YukkuriMovieMaker4 --pattern $asset.name --dir ".\YMM4Download" --clobber
+          Expand-Archive -LiteralPath ".\YMM4Download\$($asset.name)" -DestinationPath ".\YMM4" -Force
+
+          $exe = Get-ChildItem -LiteralPath ".\YMM4" -Recurse -Filter "YukkuriMovieMaker.exe" -File | Select-Object -First 1
+          if ($null -eq $exe) {
+            throw "YukkuriMovieMaker.exe was not found after extracting $($asset.name)."
+          }
+          "YMM4_DIR=$($exe.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Setup Directory.Build.props
+        shell: pwsh
+        run: |
+          $kitsRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $fxc = Get-ChildItem -LiteralPath $kitsRoot -Directory |
+            Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName "x64\fxc.exe" } |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+            Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($fxc)) {
+            throw "fxc.exe was not found."
+          }
+          $content = @"
+          <Project>
+            <PropertyGroup>
+              <YMM4DirPath>$env:YMM4_DIR\</YMM4DirPath>
+              <FxcPath>$fxc</FxcPath>
+              <DotnetPath>$((Get-Command dotnet).Source)</DotnetPath>
+              <PythonPath>$((Get-Command python).Source)</PythonPath>
+            </PropertyGroup>
+          </Project>
+          "@
+          Set-Content -Path "Directory.Build.props" -Value $content
+
+      - name: Run static and xUnit tests
+        shell: pwsh
+        run: .\scripts\dev.ps1 test
+
+      - name: Create release package
+        shell: pwsh
+        run: .\scripts\dev.ps1 publish
+
+      - name: Upload distribution package
+        uses: actions/upload-artifact@v4
+        with:
+          name: YMM4SandSim-distribution
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+          generate_release_notes: true
