@@ -122,14 +122,14 @@ Emitterのrestampでは、既存のrigid source particleが持つ破断履歴を
 
 爆発には2種類のseed経路があります。
 火薬の着火はone-shot metadata eventを設定します。
-任意で有効にできるYMM4の`VideoEffectController`は、アイテムローカルの中心位置、発火フレーム、セル単位のpressure radiusを取得します。発火条件を最初に跨いだsimulation iterationでは、指定半径のradial pressure fieldを直接seedします。各セルへのseed値は爆心からの距離と途中素材の`ExplosionPressureTransmission`から求めるため、半径変更がそのフレームの爆風範囲へ反映され、厚い壁の背後では圧力が減衰します。
+任意で有効にできるYMM4の`VideoEffectController`は、アイテムローカルの中心位置、発火フレーム、セル単位のpressure radiusを取得します。発火条件を最初に跨いだsimulation iterationでは爆心の1セルだけをseedし、その後は8近傍のpressure propagationで円形の衝撃波を外側へ進めます。`ExplosionRadius`は伝播距離と減衰を決めるため、半径を大きくすると波面がより遠くまで到達します。素材ごとの`ExplosionPressureTransmission`により、厚い壁の背後では圧力が減衰します。
 2個目のpreview handleでは、このpressure radiusを編集できます。
 
-どちらの経路も`SandExplosionUpdate`へ合流します。火薬のone-shot eventは従来どおり1セルから伝播し、controller seedは指定半径へ即時展開します。
+どちらの経路も`SandExplosionUpdate`へ合流し、1セルのseedから同じpressure propagationへ入ります。pressure fieldはCA素材の飛散、XPBD固体への放射状インパルス、破断、爆発光、可視ショックウェーブを同期させます。制御点爆発では爆心付近だけに少量の`MaterialFire`を生成し、その後の延焼は既存のCA隣接反応へ任せます。
 両方の経路は、既存のcell grid上にあるGPU-resident scalar pressure fieldを更新します。
 CPU側のbody、contact、event listやGPU readbackは使用しません。
 
-CA側ではpressureを衝撃だけでなくblast heatとしても参照します。高圧の空セルには決定的な確率で`Fire`を生成し、既存の`IgnitionProbability`を増幅して可燃CA素材を着火します。その後の延焼は通常のfire chemistryへ合流し、XPBD固定素材も周囲の火を`SandRigidReact`で受け取ります。
+制御点爆発では、発火iterationに爆心付近の空セルへ小さな`MaterialFire`コアだけをseedします。pressure field自体は可燃素材を直接`Fire`へ変換しません。以後の木、油、硫黄、石炭などへの延焼は通常の`ReactPair`と`IgnitionProbability`によるCA隣接反応へ任せ、XPBD固定素材も周囲の火を`SandRigidReact`で受け取ります。
 
 Timeline evaluationは`Initial`、`Continuous`、`Random`へ明示的に分類します。
 Initial accessでは現在の入力から状態を構築し、設定された上限内のwarm-upだけを適用します。
@@ -141,11 +141,11 @@ Random accessにはシークと巻き戻しを含み、不可逆なGPU状態を�
 - 圧力は気体をほぼ自由に通過し、液体と粉体では減衰し、rigid materialでは強く減衰します。
   Pink waxはgeneric organic branchへ入る前に専用のsoft-solid transmissionを使用します。
 - CAは通常flowのあとにpressure gradientを読み、移動可能な素材を低圧側へswapできます。
-- `SandRigidIntegrate`は同じgradientをimpulseとして読みます。
+- `SandRigidIntegrate`は同じgradientの方向を放射状impulseとして読みます。`ExplosionRadius`による勾配希薄化を補正し、`RigidProperties`の密度が低い素材ほど大きな速度を受けます。
   十分に鋭いimpulseはXPBD bondへ永続的な破断markerを設定できます。
 - 厚く密度の高い壁ほど背後の圧力を弱めますが、脆い表面は破断する可能性があります。
   斜め伝播では2つのcardinal side cellも確認し、完全に閉じた90度角をwaveが斜めに通過することを防ぎます。
-- 爆発圧力はrender-time light fieldもseedするため、flashと物理応答が同期します。
+- 爆発圧力はrender-time light fieldもseedし、未到達セルと接するpressure frontを暖色のshock ringとして強調するため、波面のflashと物理応答が同期します。
 - 着火直後のgunpowder cellは、pressure passがone-shot eventを消費するまでその位置へ固定します。
   CA reactionとmovement、swapは、そのeventを持つcellを一時的に移動不可として扱います。
 
