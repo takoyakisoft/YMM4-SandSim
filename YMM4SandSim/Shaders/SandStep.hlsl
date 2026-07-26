@@ -489,43 +489,33 @@ void TriggerGunpowderFromBlast(inout Cell cell, bool rigidOccupied, uint2 positi
     cell.Meta |= ExplosionEventFlag;
 }
 
-void IgniteFromBlast(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
+void SeedManualExplosionFire(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
 {
-    if (rigidOccupied || ExplosionStrength <= 0.0f)
+    if (rigidOccupied || ManualExplosionEnabled == 0u || ExplosionStrength <= 0.0f ||
+        GetMaterial(cell.Meta) != MaterialEmpty)
         return;
 
-    const uint material = GetMaterial(cell.Meta);
-    if (material == MaterialGunpowder || IsHeat(material))
+    // Fire is a CA material, not a second pressure effect. Seed only a compact
+    // hot core for a controller-triggered explosion; from there the existing
+    // neighbour reactions decide how fire spreads through oil, sulfur, coal and
+    // organic materials. Gunpowder explosions already turn their ignition cell
+    // into fire before emitting ExplosionEventFlag.
+    const float2 delta = float2(position) - float2(ManualExplosionCellX, ManualExplosionCellY);
+    const float distance = length(delta);
+    const float coreRadius = clamp(ExplosionRadius * 0.20f, 1.25f, 4.0f);
+    if (distance > coreRadius)
         return;
 
-    const float blastEnergy = ExplosionPressureAt(position) * ExplosionStrength;
-    if (blastEnergy <= 0.20f)
-        return;
-
-    // Explosions carry heat as well as impulse. Create a sparse hot core in
-    // empty space, then let the existing fire chemistry spread into nearby
-    // flammable materials. Material ignition still respects ReactionStrength.
-    if (material == MaterialEmpty)
-    {
-        const float fireProbability = saturate((blastEnergy - 0.55f) * 0.90f);
-        if (ChanceUnscaled(randomCell, salt, fireProbability))
-            SetMaterial(cell, MaterialFire);
-        return;
-    }
-
-    const float baseProbability = IgnitionProbability(MaterialFire, material);
-    if (baseProbability <= 0.0f)
-        return;
-
-    const float heatMultiplier = 8.0f + 24.0f * saturate(blastEnergy);
-    if (Chance(randomCell, salt, saturate(baseProbability * heatMultiplier)))
+    const float core = saturate(1.0f - distance / max(coreRadius, 0.001f));
+    const float probability = saturate((0.20f + core * 0.65f) * ExplosionStrength);
+    if (ChanceUnscaled(randomCell, salt, probability))
         SetMaterial(cell, MaterialFire);
 }
 
 void ReactCellToBlast(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
 {
     TriggerGunpowderFromBlast(cell, rigidOccupied, position, randomCell, salt);
-    IgniteFromBlast(cell, rigidOccupied, position, randomCell, salt + 1u);
+    SeedManualExplosionFire(cell, rigidOccupied, position, randomCell, salt + 1u);
 }
 
 bool CanBlastMove(uint mover, uint target)
