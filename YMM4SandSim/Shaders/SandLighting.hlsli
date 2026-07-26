@@ -3,6 +3,9 @@
 
 #include "SandBehavior.hlsli"
 
+static const uint ShockwaveLightOpticalMarker = 30u;
+static const float ShockwaveLightTransmission = 30.0f / 31.0f;
+
 float3 MaterialEmission(uint material)
 {
     if (material == MaterialFire) return float3(1.00f, 0.28f, 0.04f);
@@ -57,6 +60,11 @@ float3 UnpackLight(uint packed)
 float UnpackLightTransmission(uint packed)
 {
     return ((packed >> 27u) & 31u) / 31.0f;
+}
+
+bool HasShockwaveLightMarker(uint packed)
+{
+    return ((packed >> 27u) & 31u) == ShockwaveLightOpticalMarker;
 }
 
 #endif
