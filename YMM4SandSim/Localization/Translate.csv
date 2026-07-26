@@ -48,7 +48,7 @@ ExplosionFrame_Desc,desc,エフェクトの開始から何フレーム目に爆�
 ExplosionStrength_Name,name,強さ,Strength
 ExplosionStrength_Desc,desc,爆発による圧力波の強さを指定します。100%が標準です。0%で圧力波、衝撃、爆発光を無効化します。,Sets explosion pressure strength. 100% is standard; 0% disables pressure waves, impact and explosion light.
 ExplosionRadius_Name,name,半径,Radius
-ExplosionRadius_Desc,desc,爆発の影響半径をセル単位で指定します。制御点からの爆発は指定した半径へ即座に広がり、素材による遮蔽と減衰を受けます。,Sets the explosion effect radius in cells. Controller-triggered blasts immediately cover the configured radius while respecting material shielding and attenuation.
+ExplosionRadius_Desc,desc,爆発の影響半径をセル単位で指定します。衝撃波は爆心から円形に広がり、指定半径まで素材による遮蔽と減衰を受けながら伝播します。,Sets the explosion effect radius in cells. The shockwave expands radially from the blast center and propagates toward the configured radius while respecting material shielding and attenuation.
 LightingStrength_Name,name,強さ,Strength
 LightingStrength_Desc,desc,火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%でライトを無効化します。,"Sets light strength from fire, embers, lava, sea lanterns and explosions. 100% is standard; 0% disables lighting."
 LightingRadius_Name,name,半径,Radius
