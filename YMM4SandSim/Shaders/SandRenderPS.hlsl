@@ -41,6 +41,7 @@ float4 main(float4 position : SV_Position) : SV_Target
         meta = StateMeta.Load(int3(statePosition, 0));
     }
 
+    const uint material = GetMaterial(meta);
     uint packedLight = 0u;
     float3 propagatedLight = 0.0f;
     float shockwaveAlpha = 0.0f;
@@ -48,20 +49,21 @@ float4 main(float4 position : SV_Position) : SV_Target
     {
         packedLight = LightField.Load(int3(statePosition, 0));
         propagatedLight = UnpackLight(packedLight);
-        if (HasShockwaveLightMarker(packedLight))
+        // Empty cells normally quantize to optical code 31. Code 30 is reserved
+        // for an empty pressure-front cell. Restrict the test to MaterialEmpty so
+        // ordinary material transmission can never be mistaken for a shock ring.
+        if (material == MaterialEmpty && HasShockwaveLightMarker(packedLight))
         {
             const float frontBrightness = max(propagatedLight.r, max(propagatedLight.g, propagatedLight.b));
             shockwaveAlpha = saturate(frontBrightness * saturate(LightingStrength) * 0.36f);
         }
     }
 
-    const float3 shockwaveColor = float3(1.00f, 0.48f, 0.10f);
-    const uint material = GetMaterial(meta);
     if (material == MaterialEmpty)
     {
-        // Empty cells normally remain transparent. A marked pressure-front cell is
-        // the exception: draw a thin premultiplied warm ring so the physical wave
-        // itself is visible while it crosses otherwise empty space.
+        // Draw only the marked one-cell pressure front across otherwise empty
+        // space. The output is premultiplied so it composites correctly in YMM4.
+        const float3 shockwaveColor = float3(1.00f, 0.48f, 0.10f);
         return shockwaveAlpha > 0.0f
             ? float4(shockwaveColor * shockwaveAlpha, shockwaveAlpha)
             : 0.0f;
@@ -90,9 +92,5 @@ float4 main(float4 position : SV_Position) : SV_Target
         straightColor.rgb *= lightingFactor;
     }
 
-    float4 sandColor = float4(straightColor.rgb * straightColor.a, straightColor.a);
-    // Keep the ring readable as it crosses visible material too. Alpha is left
-    // unchanged for occupied cells; only premultiplied RGB receives the flash.
-    sandColor.rgb = saturate(sandColor.rgb + shockwaveColor * shockwaveAlpha * sandColor.a);
-    return sandColor;
+    return float4(straightColor.rgb * straightColor.a, straightColor.a);
 }
