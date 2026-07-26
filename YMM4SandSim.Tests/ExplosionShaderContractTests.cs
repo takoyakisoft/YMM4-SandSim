@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace YMM4SandSim.Tests;
 
 public sealed class ExplosionShaderContractTests
