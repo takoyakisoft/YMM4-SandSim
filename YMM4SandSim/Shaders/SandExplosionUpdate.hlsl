@@ -55,6 +55,42 @@ float ReadDiagonalPressure(int2 center, int2 offset)
     return pressure * max(TransmissionAt(sideA), TransmissionAt(sideB));
 }
 
+float ManualExplosionSeed(uint2 cell)
+{
+    if (ManualExplosionEnabled == 0u)
+        return 0.0f;
+
+    const int2 center = int2(ManualExplosionCellX, ManualExplosionCellY);
+    const int2 delta = int2(cell) - center;
+    const float distance = length((float2)delta);
+    const float radius = max(ExplosionRadius, 1.0f);
+    if (distance >= radius)
+        return 0.0f;
+
+    // Seed the controller blast across its configured radius immediately.
+    // The old center-only seed could expand by at most one cell per simulation
+    // iteration, so changing Radius barely changed the visible blast at the
+    // default four iterations per frame. Sampling the ray keeps the one-shot
+    // radial seed consistent with the material shielding used by propagation.
+    float transmission = 1.0f;
+    const uint sampleCount = (uint)ceil(distance);
+    [loop]
+    for (uint sampleIndex = 1u; sampleIndex <= sampleCount; sampleIndex++)
+    {
+        const float progress = (float)sampleIndex / max((float)sampleCount, 1.0f);
+        const int2 samplePosition = center + (int2)round((float2)delta * progress);
+        if (samplePosition.x < 0 || samplePosition.y < 0 ||
+            samplePosition.x >= (int)LogicalStateWidth || samplePosition.y >= (int)LogicalStateHeight)
+            return 0.0f;
+
+        transmission *= ExplosionPressureTransmission(MaterialAt((uint2)samplePosition));
+        if (transmission < 0.01f)
+            return 0.0f;
+    }
+
+    return saturate(1.0f - distance / radius) * transmission;
+}
+
 [numthreads(8, 8, 1)]
 void main(
     uint3 dispatchThreadId : SV_DispatchThreadID,
@@ -140,9 +176,8 @@ void main(
 
     const float propagated = max(0.0f, neighbour - ExplosionFalloff) * TransmissionAt(center);
     const float retained = PressureAt(center) * ExplosionDecay;
-    const bool manualExplosion = ManualExplosionEnabled != 0u &&
-        id.x == ManualExplosionCellX && id.y == ManualExplosionCellY;
-    const float seeded = (explosion || manualExplosion) ? 1.0f : 0.0f;
-    const float pressure = max(seeded, max(propagated, retained));
+    const float eventSeed = explosion ? 1.0f : 0.0f;
+    const float manualSeed = ManualExplosionSeed(id);
+    const float pressure = max(max(eventSeed, manualSeed), max(propagated, retained));
     NextPressure[id] = pressure < 0.001f ? 0.0f : pressure;
 }
