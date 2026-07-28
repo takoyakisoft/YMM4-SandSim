@@ -466,7 +466,11 @@ float ExplosionPressureAt(uint2 position)
 {
     if (position.x >= LogicalStateWidth || position.y >= LogicalStateHeight)
         return 0.0f;
-    return ExplosionPressure.Load(int3(position, 0));
+
+    const float pressure = max(ExplosionPressure.Load(int3(position, 0)), 0.0f);
+    if (IsInsideManualExplosionRegion(position))
+        return pressure * ManualExplosionWaveMask(position);
+    return pressure;
 }
 
 void TriggerGunpowderFromBlast(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
@@ -491,20 +495,28 @@ void TriggerGunpowderFromBlast(inout Cell cell, bool rigidOccupied, uint2 positi
 
 void SeedManualExplosionFire(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
 {
-    if (rigidOccupied || ManualExplosionEnabled == 0u || ExplosionStrength <= 0.0f ||
-        GetMaterial(cell.Meta) != MaterialEmpty)
+    if (rigidOccupied || ManualExplosionEnabled == 0u || ExplosionStrength <= 0.0f)
         return;
 
-    // Fire is a CA material, not a second pressure effect. Seed only a compact
-    // hot core for a controller-triggered explosion; from there the existing
-    // neighbour reactions decide how fire spreads through oil, sulfur, coal and
-    // organic materials. Gunpowder explosions already turn their ignition cell
-    // into fire before emitting ExplosionEventFlag.
     const float2 delta = float2(position) - float2(ManualExplosionCellX, ManualExplosionCellY);
     const float distance = length(delta);
     const float coreRadius = clamp(ExplosionRadius * 0.20f, 1.25f, 4.0f);
     if (distance > coreRadius)
         return;
+
+    const uint material = GetMaterial(cell.Meta);
+    if (material != MaterialEmpty)
+    {
+        // The controller must create at least one heat source even when its core
+        // is completely filled. Ignite only the exact flammable center cell;
+        // all subsequent spread still goes through ReactPair/ignition chemistry.
+        if (distance < 0.5f && !IsHeat(material) &&
+            IgnitionProbability(MaterialFire, material) > 0.0f)
+        {
+            SetMaterial(cell, MaterialFire);
+        }
+        return;
+    }
 
     const float core = saturate(1.0f - distance / max(coreRadius, 0.001f));
     const float probability = saturate((0.20f + core * 0.65f) * ExplosionStrength);

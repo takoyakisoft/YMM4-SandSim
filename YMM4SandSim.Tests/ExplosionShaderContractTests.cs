@@ -17,24 +17,46 @@ public sealed class ExplosionShaderContractTests
     }
 
     [Fact]
-    public void BlastImpulseUsesRadialPressureFrontAndRigidDensity()
+    public void ControllerWaveUsesPersistentEuclideanFrontForCaAndLighting()
     {
-        var source = ReadShader("SandRigidIntegrate.hlsl");
+        var behavior = ReadShader("SandBehavior.hlsli");
+        var step = ReadShader("SandStep.hlsl");
+        var seed = ReadShader("SandLightSeed.hlsl");
 
-        Assert.Contains("pressureGradient / gradientMagnitude", source);
-        Assert.Contains("gradientMagnitude * max(ExplosionRadius, 1.0f)", source);
-        Assert.Contains("rsqrt(max(rigidDensity, 0.50f))", source);
+        Assert.Contains("ManualExplosionWaveStep", behavior);
+        Assert.Contains("abs(distance - waveRadius)", behavior);
+        Assert.Contains("IsInsideManualExplosionRegion(position)", step);
+        Assert.Contains("pressure * ManualExplosionWaveMask(position)", step);
+        Assert.Contains("visiblePressure *= radialFront", seed);
+        Assert.Contains("explosionFront = radialFront * saturate(pressure * 2.5f)", seed);
     }
 
     [Fact]
-    public void ControllerExplosionSeedsFireThenUsesExistingCellularChemistry()
+    public void BlastImpulseUsesRadialControllerFrontAndRigidDensity()
     {
-        var source = ReadShader("SandStep.hlsl");
+        var source = ReadShader("SandRigidIntegrate.hlsl");
 
-        Assert.Contains("void SeedManualExplosionFire(", source);
-        Assert.Contains("coreRadius = clamp(ExplosionRadius * 0.20f", source);
-        Assert.Contains("SetMaterial(cell, MaterialFire)", source);
-        Assert.DoesNotContain("void IgniteFromBlast(", source);
+        Assert.Contains("IsInsideManualExplosionRegion(cell)", source);
+        Assert.Contains("ManualExplosionWaveMask(cell)", source);
+        Assert.Contains("return delta / distance * impulseMagnitude", source);
+        Assert.Contains("rsqrt(max(rigidDensity, 0.50f))", source);
+        Assert.Contains("pressureGradient / gradientMagnitude", source);
+    }
+
+    [Fact]
+    public void ControllerExplosionAlwaysCreatesAHeatSourceAtFlammableCenter()
+    {
+        var step = ReadShader("SandStep.hlsl");
+        var rigid = ReadShader("SandRigidReact.hlsl");
+
+        Assert.Contains("void SeedManualExplosionFire(", step);
+        Assert.Contains("distance < 0.5f", step);
+        Assert.Contains("IgnitionProbability(MaterialFire, material) > 0.0f", step);
+        Assert.Contains("SetMaterial(cell, MaterialFire)", step);
+        Assert.Contains("target.x == ManualExplosionCellX", rigid);
+        Assert.Contains("target.y == ManualExplosionCellY", rigid);
+        Assert.Contains("ConvertRigidToCell(id, target, MaterialFire)", rigid);
+        Assert.DoesNotContain("void IgniteFromBlast(", step);
     }
 
     [Fact]

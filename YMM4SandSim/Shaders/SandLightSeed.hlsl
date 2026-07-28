@@ -76,8 +76,18 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (ExplosionStrength > 0.0f)
     {
         const float pressure = ReadExplosionPressure(int2(id));
-        explosionFront = ExplosionFrontAt(id, pressure);
-        const float core = saturate(pressure * 0.10f);
+        float visiblePressure = pressure;
+        if (IsInsideManualExplosionRegion(id))
+        {
+            const float radialFront = ManualExplosionWaveMask(id);
+            visiblePressure *= radialFront;
+            explosionFront = radialFront * saturate(pressure * 2.5f);
+        }
+        else
+        {
+            explosionFront = ExplosionFrontAt(id, pressure);
+        }
+        const float core = saturate(visiblePressure * 0.10f);
         const float flash = saturate(max(explosionFront, core) * ExplosionStrength);
         light = max(light, float3(1.00f, 0.48f, 0.10f) * flash);
     }

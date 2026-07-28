@@ -146,6 +146,16 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (RigidOccupancy.Load(int3(target, 0)) != OwnerFor(id))
         return;
 
+    if (ManualExplosionEnabled != 0u &&
+        target.x == ManualExplosionCellX && target.y == ManualExplosionCellY &&
+        IgnitionProbability(MaterialFire, material) > 0.0f)
+    {
+        // Match the CA hot-core rule for XPBD-owned flammable material. Only the
+        // exact center becomes fire; propagation remains normal CA chemistry.
+        ConvertRigidToCell(id, target, MaterialFire);
+        return;
+    }
+
     uint heat;
     bool hasAcid;
     bool hasSeaWater;

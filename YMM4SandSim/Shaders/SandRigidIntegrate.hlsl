@@ -20,16 +20,35 @@ float2 ExplosionImpulseAt(uint2 cell, float rigidDensity)
 
     const int2 p = int2(cell);
     const float centerPressure = ReadExplosionPressure(p);
+    const float densityScale = rsqrt(max(rigidDensity, 0.50f));
+
+    if (IsInsideManualExplosionRegion(cell))
+    {
+        const float frontMask = ManualExplosionWaveMask(cell);
+        if (frontMask <= 0.0f || centerPressure <= 0.0f)
+            return 0.0f;
+
+        const float2 delta = float2(cell) - float2(ManualExplosionCellX, ManualExplosionCellY);
+        const float distance = length(delta);
+        if (distance < 0.0001f)
+            return 0.0f;
+
+        // The pressure texture still supplies shielding/attenuation, but the
+        // controller front direction comes from the blast center instead of the
+        // square 8-neighbour arrival gradient. This makes the XPBD kick radial.
+        const float radius = max(ExplosionRadius, 1.0f);
+        const float expectedPressure = max(1.0f - distance / radius, 1.0f / radius);
+        const float transmissionScale = saturate(centerPressure / max(expectedPressure, 0.001f));
+        const float waveStrength = frontMask * transmissionScale;
+        const float impulseMagnitude = min(waveStrength * ExplosionStrength * 0.85f * densityScale, 0.90f);
+        return delta / distance * impulseMagnitude;
+    }
+
     const float left = ReadExplosionPressure(p + int2(-1, 0));
     const float right = ReadExplosionPressure(p + int2(1, 0));
     const float up = ReadExplosionPressure(p + int2(0, -1));
     const float down = ReadExplosionPressure(p + int2(0, 1));
 
-    // Use the pressure gradient for direction, but normalize its strength against
-    // ExplosionRadius. The raw gradient is approximately 1/radius, which made
-    // large configured blasts paradoxically push rigid bodies less than small
-    // ones. The normalized front behaves like a radial impulse from a physics
-    // engine while material density still controls how strongly each body moves.
     const float2 pressureGradient = float2(left - right, up - down);
     const float gradientMagnitude = length(pressureGradient);
     if (gradientMagnitude < 0.0001f)
@@ -39,7 +58,6 @@ float2 ExplosionImpulseAt(uint2 cell, float rigidDensity)
     const float frontStrength = saturate(gradientMagnitude * max(ExplosionRadius, 1.0f) * 1.50f);
     const float pressureStrength = saturate(centerPressure * 0.35f);
     const float waveStrength = max(frontStrength, pressureStrength);
-    const float densityScale = rsqrt(max(rigidDensity, 0.50f));
     const float impulseMagnitude = min(waveStrength * ExplosionStrength * 0.85f * densityScale, 0.90f);
     return direction * impulseMagnitude;
 }

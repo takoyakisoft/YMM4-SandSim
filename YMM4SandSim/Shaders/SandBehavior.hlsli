@@ -158,6 +158,39 @@ bool IsHeat(uint material)
     return MaterialInSet(material, HeatMaskLow, HeatMaskHigh);
 }
 
+static const uint InactiveManualExplosionWaveStep = 0xffffffffu;
+
+bool HasManualExplosionWave()
+{
+    return ManualExplosionWaveStep != InactiveManualExplosionWaveStep;
+}
+
+float ManualExplosionDistance(uint2 cell)
+{
+    const float2 delta = float2(cell) - float2(ManualExplosionCellX, ManualExplosionCellY);
+    return length(delta);
+}
+
+bool IsInsideManualExplosionRegion(uint2 cell)
+{
+    return HasManualExplosionWave() &&
+        ManualExplosionDistance(cell) <= max(ExplosionRadius, 1.0f) + 1.0f;
+}
+
+float ManualExplosionWaveMask(uint2 cell)
+{
+    if (!HasManualExplosionWave())
+        return 0.0f;
+
+    const float waveRadius = (float)ManualExplosionWaveStep;
+    if (waveRadius >= max(ExplosionRadius, 1.0f))
+        return 0.0f;
+
+    const float distance = ManualExplosionDistance(cell);
+    const float halfWidth = 0.75f;
+    return saturate(1.0f - abs(distance - waveRadius) / halfWidth);
+}
+
 // Fraction of a pressure wave that enters a cell occupied by this material.
 // This is deliberately a coarse gameplay model rather than an acoustic solver:
 // gases transmit a blast almost freely, liquids damp it slightly, loose powder

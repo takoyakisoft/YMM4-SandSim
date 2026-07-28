@@ -51,7 +51,7 @@ cbuffer SandConstants : register(b0)
     uint ManualExplosionCellX;
     uint ManualExplosionCellY;
     uint ManualExplosionEnabled;
-    uint ManualExplosionPadding;
+    uint ManualExplosionWaveStep;
 
     float LightingStrength;
     float LightingRadius;

@@ -108,7 +108,7 @@
 <data name="ExplosionStrength_Name" xml:space="preserve"><value>強さ</value></data>
 <data name="ExplosionStrength_Desc" xml:space="preserve"><value>爆発による圧力波の強さを指定します。100%が標準です。0%で圧力波、衝撃、爆発光を無効化します。</value></data>
 <data name="ExplosionRadius_Name" xml:space="preserve"><value>半径</value></data>
-<data name="ExplosionRadius_Desc" xml:space="preserve"><value>圧力波が広がる目安の半径をセル単位で指定します。圧力は更新ごとに伝わり、衝撃波として広がります。</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>爆発の影響半径をセル単位で指定します。衝撃波は爆心から円形に広がり、指定半径まで素材による遮蔽と減衰を受けながら伝播します。</value></data>
 <data name="LightingStrength_Name" xml:space="preserve"><value>強さ</value></data>
 <data name="LightingStrength_Desc" xml:space="preserve"><value>火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%でライトを無効化します。</value></data>
 <data name="LightingRadius_Name" xml:space="preserve"><value>半径</value></data>

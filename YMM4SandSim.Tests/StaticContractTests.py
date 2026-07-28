@@ -310,9 +310,10 @@ def test_multi_instance_graph_and_context_contract() -> None:
     check("SandComposite.hlsl" not in csproj and not (SHADERS / "SandComposite.hlsl").exists(),
           "obsolete D2D composite shader must not be compiled or deployed")
     check("SourceTexture" not in render and "sourceColor" not in render and "Amount" not in render and
-          "if (material == MaterialEmpty)" in render and "return 0.0f;" in render and
-          "return sandColor;" in render,
-          "plugin-owned D3D render pass must output only the simulation with transparent empty cells")
+          "if (material == MaterialEmpty)" in render and "HasShockwaveLightMarker" in render and
+          "float4(shockwaveColor * shockwaveAlpha, shockwaveAlpha)" in render and
+          "return float4(straightColor.rgb * straightColor.a, straightColor.a);" in render,
+          "plugin-owned D3D render pass must output simulation cells plus the premultiplied empty-cell shock front")
     check("CreateDeviceContextState<ID3D11Device1>" in gpu and
           "CreateDeviceContextState<ID3D11DeviceContext1>" not in gpu and
           gpu.count("EnterIsolatedContext()") >= 4 and

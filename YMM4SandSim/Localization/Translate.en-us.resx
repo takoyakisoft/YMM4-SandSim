@@ -108,7 +108,7 @@
 <data name="ExplosionStrength_Name" xml:space="preserve"><value>Strength</value></data>
 <data name="ExplosionStrength_Desc" xml:space="preserve"><value>Sets explosion pressure strength. 100% is standard; 0% disables pressure waves</value></data>
 <data name="ExplosionRadius_Name" xml:space="preserve"><value>Radius</value></data>
-<data name="ExplosionRadius_Desc" xml:space="preserve"><value>Sets the approximate pressure-wave radius in cells. Pressure propagates on each update as a shock wave.</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>Sets the explosion effect radius in cells. The shockwave expands radially from the blast center and propagates toward the configured radius while respecting material shielding and attenuation.</value></data>
 <data name="LightingStrength_Name" xml:space="preserve"><value>Strength</value></data>
 <data name="LightingStrength_Desc" xml:space="preserve"><value>Sets light strength from fire, embers, lava, sea lanterns and explosions. 100% is standard; 0% disables lighting.</value></data>
 <data name="LightingRadius_Name" xml:space="preserve"><value>Radius</value></data>

@@ -102,6 +102,12 @@ internal sealed class SandSimulationGpu : IDisposable
     private bool _explosionPressureDirty;
     private int _currentLight;
     private uint _globalStep;
+    private bool _manualExplosionWaveActive;
+    private bool _manualExplosionWaveVisible;
+    private uint _manualExplosionWaveNextStep;
+    private uint _manualExplosionWaveRenderedStep;
+    private uint _manualExplosionCellX;
+    private uint _manualExplosionCellY;
     private bool _disposed;
 
     private SandSimulationGpu(
@@ -429,6 +435,10 @@ internal sealed class SandSimulationGpu : IDisposable
             if (explosionResourcesCreated)
                 ResetExplosionPressure(ref constants);
 
+            _manualExplosionWaveVisible = false;
+            if (parameters.ManualExplosion && parameters.ExplosionStrength > 0.0f)
+                StartManualExplosionWave(in constants);
+
             for (var i = 0; i < iterations; i++)
             {
                 var destination = 1 - _currentState;
@@ -443,6 +453,8 @@ internal sealed class SandSimulationGpu : IDisposable
 
                 constants.StepIndex = _globalStep;
                 constants.ManualExplosionEnabled = parameters.ManualExplosion && i == 0 ? 1u : 0u;
+                PrepareManualExplosionWaveForStep(ref constants);
+                uint manualExplosionWaveStep = constants.ManualExplosionWaveStep;
                 if (parameters.ExplosionStrength > 0.0f)
                 {
                     UpdateExplosion(ref constants);
@@ -483,10 +495,21 @@ internal sealed class SandSimulationGpu : IDisposable
                 UnbindComputeViews();
                 _currentState = destination;
 
-                if (solidPhysicsEnabled && parameters.ReactionStrength > 0.0f)
+                if (solidPhysicsEnabled &&
+                    (parameters.ReactionStrength > 0.0f || constants.ManualExplosionEnabled != 0u))
                 {
                     ReactRigid(ref constants, sourceMetaSrv);
                     BuildRigidOccupancy(ref constants, resolveConflicts: false);
+                }
+
+                if (manualExplosionWaveStep != uint.MaxValue)
+                {
+                    _manualExplosionWaveNextStep = manualExplosionWaveStep + 1u;
+                    if ((float)manualExplosionWaveStep < Math.Max(constants.ExplosionRadius, 1.0f))
+                    {
+                        _manualExplosionWaveRenderedStep = manualExplosionWaveStep;
+                        _manualExplosionWaveVisible = true;
+                    }
                 }
             }
 
@@ -519,6 +542,7 @@ internal sealed class SandSimulationGpu : IDisposable
                 ?? throw new InvalidOperationException("Current metadata state SRV is not initialized.");
             var constants = CreateConstants(in parameters);
             constants.StepIndex = _globalStep;
+            PrepareManualExplosionWaveForRender(ref constants);
             BuildLighting(ref constants, parameters.LightingRadius);
             UpdateConstants(in constants);
 
@@ -677,6 +701,7 @@ internal sealed class SandSimulationGpu : IDisposable
         }
         _currentExplosionPressure = 0;
         _explosionPressureDirty = false;
+        ResetManualExplosionWave();
     }
 
     private void ClearExplosionState(ref GpuConstants constants)
@@ -1266,6 +1291,7 @@ internal sealed class SandSimulationGpu : IDisposable
         DisposeStateResources(_explosionPressureUavs, _explosionPressureSrvs, _explosionPressureTextures);
         _currentExplosionPressure = 0;
         _explosionPressureDirty = false;
+        ResetManualExplosionWave();
     }
 
     private void ReleaseLightResources()
@@ -1379,6 +1405,59 @@ internal sealed class SandSimulationGpu : IDisposable
         _context.Unmap(buffer);
     }
 
+    private void StartManualExplosionWave(in GpuConstants constants)
+    {
+        _manualExplosionWaveActive = true;
+        _manualExplosionWaveVisible = false;
+        _manualExplosionWaveNextStep = 0u;
+        _manualExplosionWaveRenderedStep = 0u;
+        _manualExplosionCellX = constants.ManualExplosionCellX;
+        _manualExplosionCellY = constants.ManualExplosionCellY;
+    }
+
+    private void PrepareManualExplosionWaveForStep(ref GpuConstants constants)
+    {
+        constants.ManualExplosionWaveStep = uint.MaxValue;
+        if (!_manualExplosionWaveActive)
+            return;
+
+        // Keep suppressing the square residual pressure for four iterations after
+        // the visible radial front reaches the configured radius. The pressure
+        // field has decayed below its 0.001 cutoff by then at the supported radii.
+        var visibleRadius = Math.Max((uint)MathF.Ceiling(constants.ExplosionRadius), 1u);
+        var activeStepLimit = visibleRadius + 4u;
+        if (_manualExplosionWaveNextStep >= activeStepLimit)
+        {
+            _manualExplosionWaveActive = false;
+            return;
+        }
+
+        constants.ManualExplosionCellX = _manualExplosionCellX;
+        constants.ManualExplosionCellY = _manualExplosionCellY;
+        constants.ManualExplosionWaveStep = _manualExplosionWaveNextStep;
+    }
+
+    private void PrepareManualExplosionWaveForRender(ref GpuConstants constants)
+    {
+        constants.ManualExplosionWaveStep = uint.MaxValue;
+        if (!_manualExplosionWaveVisible)
+            return;
+
+        constants.ManualExplosionCellX = _manualExplosionCellX;
+        constants.ManualExplosionCellY = _manualExplosionCellY;
+        constants.ManualExplosionWaveStep = _manualExplosionWaveRenderedStep;
+    }
+
+    private void ResetManualExplosionWave()
+    {
+        _manualExplosionWaveActive = false;
+        _manualExplosionWaveVisible = false;
+        _manualExplosionWaveNextStep = 0u;
+        _manualExplosionWaveRenderedStep = 0u;
+        _manualExplosionCellX = 0u;
+        _manualExplosionCellY = 0u;
+    }
+
     private GpuConstants CreateConstants(in FrameParameters parameters)
     {
         var manualExplosionCellX = ResolveExplosionCell(parameters.ManualExplosionX, _sourceWidth, _logicalStateWidth, parameters.ParticleSize);
@@ -1424,7 +1503,7 @@ internal sealed class SandSimulationGpu : IDisposable
             ManualExplosionCellX = manualExplosionCellX,
             ManualExplosionCellY = manualExplosionCellY,
             ManualExplosionEnabled = parameters.ManualExplosion ? 1u : 0u,
-            ManualExplosionPadding = 0u,
+            ManualExplosionWaveStep = uint.MaxValue,
             LightingStrength = parameters.LightingStrength,
             LightingRadius = parameters.LightingRadius,
             AmbientLight = parameters.AmbientLight,
@@ -1545,7 +1624,7 @@ internal sealed class SandSimulationGpu : IDisposable
         public uint ManualExplosionCellX;
         public uint ManualExplosionCellY;
         public uint ManualExplosionEnabled;
-        public uint ManualExplosionPadding;
+        public uint ManualExplosionWaveStep;
 
         public float LightingStrength;
         public float LightingRadius;
