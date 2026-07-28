@@ -12,8 +12,9 @@ YMM4-SandSimには、Direct3D 11上で動く既存のセルオートマトンが
 
 - **表現**：1個の固体source cellを1個のGPU particleとして保持します。
   状態は`float4`で、現在位置を`xy`、直前位置を`zw`へ格納します。
-- **トポロジ**：source imageの8近傍接続を固定トポロジとして使用します。
-  CPUでconnected-componentsやcontour extractionは行いません。
+- **Body同定**：GPU Connected Componentsで、同一素材・4近傍・未破断bondでつながっているsource cell群へ同じBody IDを付けます。
+  離れた同素材と異素材は必ず別Bodyです。CPU readbackやCPU body graphは使用しません。
+- **トポロジ**：XPBDの候補edge自体はsource imageの8近傍ですが、同じConnected Body IDの端点だけをconstraintとして解きます。
 - **積分**：damped Verletとgravityを使用し、substepは固定`1/120 s`です。
 - **制約**：XPBD distance constraintを使用します。
   水平と垂直のrest lengthは1、斜めは`sqrt(2)`です。
@@ -22,8 +23,9 @@ YMM4-SandSimには、Direct3D 11上で動く既存のセルオートマトンが
   奇数の論理サイズでは、最終行と最終列も偶数パディングセルを使って拘束対象にします。
 - **衝突のbroadphase**：論理cell gridそのものを使用します。
   continuous positionをgridへ投影し、`InterlockedMin`で各cellのownerを決定します。
-- **衝突応答**：owner競合の敗者をprevious positionへrollbackし、そのsubstepの速度を0にします。
-  2回resolveしたあとに最終occupancyを構築します。
+- **衝突応答**：occupancy競合を外部接触とBody内部競合に分離します。外部接触だけをBody代表へatomic ORで集約し、床ならY、壁ならXの速度成分だけを止めます。
+  接線方向の運動量は残し、同じBody内部のセル競合でBody全体を停止させません。
+- **空洞**：Body IDは固体source cellにだけ存在します。内部がEmptyならそこにoccupancy/colliderは作られないため、1つの巨大Bodyでも穴や通路を維持します。
 - **CAとの接続**：powder、liquid、gas passはrigid occupancyを移動不可セルとして参照します。
   rendererも同じoccupancyからrigid source idを逆引きします。
 
@@ -77,9 +79,10 @@ GPU上では、次の双方向連携を行います。
 - **Velocity retention**：global dampingへ重ねる素材別の減衰率です。
 - **Tensile break strain**：E、S、SE、SW方向のbondに対する永続的な破断閾値です。
 
-異素材間のbondでは、より柔らかいcomplianceと、弱い側のbreak strainの70%を使用します。
-このため、木と石のような異素材境界は、均質な素材より裂けやすくなります。
-CPU側にbody graphを追加する必要はありません。
+異素材間にはXPBD bondを張りません。隣接していても木と石、石と金属などは別Bodyとして衝突します。
+同素材でも空洞、切断、永続破断markerによって4近傍接続が途切れれば、次のBody再構築で別Body IDへ分離します。
+
+制御点爆発の粗い破断格子は`ExplosionRadius`から独立させ、素材別の物理スケールを使用します。ガラス/氷は小さく、石系は中程度、木や金属は大きな破片を保つ設定です。
 
 代表的な挙動は次のとおりです。
 
@@ -120,16 +123,20 @@ Emitterのrestampでは、既存のrigid source particleが持つ破断履歴を
 
 ## 爆発との連携
 
-爆発には2種類のseed経路があります。
-火薬の着火はone-shot metadata eventを設定します。
-任意で有効にできるYMM4の`VideoEffectController`は、アイテムローカルの中心位置、発火フレーム、セル単位のpressure radiusを取得します。発火条件を最初に跨いだsimulation iterationでは爆心の1セルだけをseedし、その後は8近傍のpressure propagationで円形の衝撃波を外側へ進めます。`ExplosionRadius`は伝播距離と減衰を決めるため、半径を大きくすると波面がより遠くまで到達します。素材ごとの`ExplosionPressureTransmission`により、厚い壁の背後では圧力が減衰します。
-2個目のpreview handleでは、このpressure radiusを編集できます。
+爆発には2つの経路があります。
 
-どちらの経路も`SandExplosionUpdate`へ合流し、1セルのseedから同じpressure propagationへ入ります。pressure fieldはCA素材の飛散、XPBD固体への放射状インパルス、破断、爆発光、可視ショックウェーブを同期させます。制御点爆発では爆心付近だけに少量の`MaterialFire`を生成し、その後の延焼は既存のCA隣接反応へ任せます。
-両方の経路は、既存のcell grid上にあるGPU-resident scalar pressure fieldを更新します。
-CPU側のbody、contact、event listやGPU readbackは使用しません。
+- **火薬爆発**：火薬のone-shot metadata eventを`SandExplosionUpdate`が消費し、GPU上のscalar pressure fieldを8近傍へ伝播します。壁や素材の`ExplosionPressureTransmission`が圧力を減衰させ、火薬の連鎖、CAの飛散、XPBDへの圧力gradient、発光へ利用します。
+- **制御点爆発**：YMM4の`VideoEffectController`から中心、発火フレーム、px単位の半径を受け取り、火薬pressureとは別の解析的Euclidean frontを約6 simulation iterationで最大半径まで進めます。大半径でもセルを1個ずつ待つ遅い同心円伝播にはしません。
 
-制御点爆発では、発火iterationに爆心付近の空セルへ小さな`MaterialFire`コアだけをseedします。pressure field自体は可燃素材を直接`Fire`へ変換しません。以後の木、油、硫黄、石炭などへの延焼は通常の`ReactPair`と`IgnitionProbability`によるCA隣接反応へ任せ、XPBD固定素材も周囲の火を`SandRigidReact`で受け取ります。
+制御点の中心はsigned cell座標としてGPUへ渡し、画面端へclampしません。画面外の爆心から半径の一部だけを画面内へ届かせることができます。
+
+制御点爆発では同じConnected Bodyの全セルへ、Body代表位置から求めた共通放射方向のimpulseを加えます。これによりセルごとの速度差をXPBDが打ち消すのを抑えます。爆発後の外部接触は軸別に処理し、床に触れても横方向の運動量を保持します。
+
+中心部は一度だけEmptyへ削り、空洞壁の狭いshellへFireをseedします。その後の木、油、硫黄、石炭などへの延焼は通常のCA隣接反応へ任せます。XPBD固定素材も`SandRigidReact`から同じ化学反応を受け取ります。
+
+強い制御点爆発は永続bond markerを素材別の破断スケールで設定します。Connected Componentsは次のBody再構築時に破断済み軸bondを接続として使わないため、同素材でも切断された島は別Bodyになります。
+
+CPU側のbody/contact/event list、GPU simulation stateのreadback、blocking synchronizationは使用しません。
 
 Timeline evaluationは`Initial`、`Continuous`、`Random`へ明示的に分類します。
 Initial accessでは現在の入力から状態を構築し、設定された上限内のwarm-upだけを適用します。
@@ -141,11 +148,11 @@ Random accessにはシークと巻き戻しを含み、不可逆なGPU状態を�
 - 圧力は気体をほぼ自由に通過し、液体と粉体では減衰し、rigid materialでは強く減衰します。
   Pink waxはgeneric organic branchへ入る前に専用のsoft-solid transmissionを使用します。
 - CAは通常flowのあとにpressure gradientを読み、移動可能な素材を低圧側へswapできます。
-- `SandRigidIntegrate`は同じgradientの方向を放射状impulseとして読みます。`ExplosionRadius`による勾配希薄化を補正し、`RigidProperties`の密度が低い素材ほど大きな速度を受けます。
-  十分に鋭いimpulseはXPBD bondへ永続的な破断markerを設定できます。
+- 火薬由来の爆発では`SandRigidIntegrate`がpressure gradientをimpulseとして読みます。制御点爆発ではConnected Body代表からのEuclidean放射方向を使用します。
+  どちらも`RigidProperties`の密度を反映し、十分に鋭いimpulseはXPBD bondへ永続的な破断markerを設定できます。
 - 厚く密度の高い壁ほど背後の圧力を弱めますが、脆い表面は破断する可能性があります。
   斜め伝播では2つのcardinal side cellも確認し、完全に閉じた90度角をwaveが斜めに通過することを防ぎます。
-- 爆発圧力はrender-time light fieldもseedし、未到達セルと接するpressure frontを暖色のshock ringとして強調するため、波面のflashと物理応答が同期します。
+- 火薬pressureと制御点の解析的frontはrender-time light fieldもseedし、暖色のshock ringとして波面のflashと物理応答を同期します。
 - 着火直後のgunpowder cellは、pressure passがone-shot eventを消費するまでその位置へ固定します。
   CA reactionとmovement、swapは、そのeventを持つcellを一時的に移動不可として扱います。
 
@@ -163,10 +170,18 @@ Fire、ember、lava、sea lantern、explosion pressureがlight fieldをseedし�
 この処理はray tracingでも、複数光源を加算するradiative transportでもありません。
 dispatch回数に上限を持つ、決定的なscreen-space cell近似です。
 
+## 性能計測とD3D11 state
+
+Connected Componentsは複数のunion/compress dispatchを必要とします。各roundでshader/SRV/UAVを再bindせず、同じstateを保持してconstant bufferだけ更新します。これによりGPUアルゴリズムを変えずにCPU/driver側のstate changeを減らします。
+
+`YMM4SANDSIM_LOG_LEVEL=Information`を明示した場合だけ、120回単位でsimulation/renderの`cpuSubmitMs`とCompute Shader dispatch数をログへ集計します。`cpuSubmitMs`はCPUがD3D11コマンドを発行する時間であり、GPU実行時間ではありません。
+
+設計ルールのGPU readback禁止を守るため、timestamp queryをCPUへ回収する内蔵GPU profilerは追加しません。GPU時間を調べる場合はPIX/RenderDocなど外部ツールを使用します。
+
 ## GPUメモリの上限
 
 Simulation bufferは、最悪構成を常時確保せず、機能ごとに必要な場合だけ確保します。
-CA stateは16 byte/cell、XPBDは44 byte/cell、explosion pressureは8 byte/cell、lightingは8 byte/cellを追加し、全機能有効時は76 byte/cellです。
+CA stateは16 byte/cell、XPBDはBody label/contactを含め52 byte/cell、explosion pressureは8 byte/cell、lightingは8 byte/cellを追加し、全機能有効時は84 byte/cellです。
 
 state budgetは約304 MiBです。
 allocatorは有効な機能のbyte/cellから、パディング後に許容できるcell countを計算します。

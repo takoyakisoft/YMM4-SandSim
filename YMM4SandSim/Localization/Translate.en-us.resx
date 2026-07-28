@@ -92,9 +92,9 @@
 <data name="Gravity_Name" xml:space="preserve"><value>Gravity</value></data>
 <data name="Gravity_Desc" xml:space="preserve"><value>Sets gravity applied to XPBD solids. 100% is standard. Buoyancy is also applied in liquids according to material density.</value></data>
 <data name="Stiffness_Name" xml:space="preserve"><value>Stiffness</value></data>
-<data name="Stiffness_Desc" xml:space="preserve"><value>Sets material stiffness. 100% is standard; higher values preserve shape more strongly.</value></data>
+<data name="Stiffness_Desc" xml:space="preserve"><value>Sets material stiffness. 100% is standard; at 0% constraints are nearly disabled</value></data>
 <data name="BreakStrength_Name" xml:space="preserve"><value>Fracture Strength</value></data>
-<data name="BreakStrength_Desc" xml:space="preserve"><value>Sets material resistance to fracture. 100% is standard; higher values make breaking and tearing less likely.</value></data>
+<data name="BreakStrength_Desc" xml:space="preserve"><value>Sets material resistance to fracture. 100% is standard; at 0% solids are extremely fragile</value></data>
 <data name="SolverIterations_Name" xml:space="preserve"><value>Solver Iterations</value></data>
 <data name="SolverIterations_Desc" xml:space="preserve"><value>Sets XPBD solver iterations. Higher values stabilize stiff materials and increase GPU load.</value></data>
 <data name="ExplosionController_Name" xml:space="preserve"><value>Control Points</value></data>

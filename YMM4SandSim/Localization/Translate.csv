@@ -32,9 +32,9 @@ SolidMode_Desc,desc,固定素材をGPU XPBD格子へ移し、素材別の質量�
 Gravity_Name,name,重力,Gravity
 Gravity_Desc,desc,XPBD固体に加える重力を指定します。100%が標準です。液体中では素材の密度に応じて浮力も加わります。,Sets gravity applied to XPBD solids. 100% is standard. Buoyancy is also applied in liquids according to material density.
 Stiffness_Name,name,剛性,Stiffness
-Stiffness_Desc,desc,素材固有の硬さを指定します。100%が標準で、大きいほど形状を保ちやすくなります。,Sets material stiffness. 100% is standard; higher values preserve shape more strongly.
+Stiffness_Desc,desc,素材固有の硬さを指定します。100%が標準で、0%では拘束がほぼ働かず、大きいほど形状を保ちやすくなります。,Sets material stiffness. 100% is standard; at 0% constraints are nearly disabled, and higher values preserve shape more strongly.
 BreakStrength_Name,name,破断の強さ,Fracture Strength
-BreakStrength_Desc,desc,素材固有の壊れにくさを指定します。100%が標準で、大きいほど割れたりちぎれたりしにくくなります。,Sets material resistance to fracture. 100% is standard; higher values make breaking and tearing less likely.
+BreakStrength_Desc,desc,素材固有の壊れにくさを指定します。100%が標準で、0%では非常に壊れやすく、大きいほど割れたりちぎれたりしにくくなります。,Sets material resistance to fracture. 100% is standard; at 0% solids are extremely fragile, and higher values make breaking and tearing less likely.
 SolverIterations_Name,name,反復回数,Solver Iterations
 SolverIterations_Desc,desc,XPBDの計算を繰り返す回数を指定します。増やすほど硬い素材が安定し、GPU負荷も増えます。,Sets XPBD solver iterations. Higher values stabilize stiff materials and increase GPU load.
 ExplosionController_Name,name,制御点,Control Points

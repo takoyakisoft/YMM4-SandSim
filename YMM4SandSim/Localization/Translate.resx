@@ -92,9 +92,9 @@
 <data name="Gravity_Name" xml:space="preserve"><value>重力</value></data>
 <data name="Gravity_Desc" xml:space="preserve"><value>XPBD固体に加える重力を指定します。100%が標準です。液体中では素材の密度に応じて浮力も加わります。</value></data>
 <data name="Stiffness_Name" xml:space="preserve"><value>剛性</value></data>
-<data name="Stiffness_Desc" xml:space="preserve"><value>素材固有の硬さを指定します。100%が標準で、大きいほど形状を保ちやすくなります。</value></data>
+<data name="Stiffness_Desc" xml:space="preserve"><value>素材固有の硬さを指定します。100%が標準で、0%では拘束がほぼ働かず、大きいほど形状を保ちやすくなります。</value></data>
 <data name="BreakStrength_Name" xml:space="preserve"><value>破断の強さ</value></data>
-<data name="BreakStrength_Desc" xml:space="preserve"><value>素材固有の壊れにくさを指定します。100%が標準で、大きいほど割れたりちぎれたりしにくくなります。</value></data>
+<data name="BreakStrength_Desc" xml:space="preserve"><value>素材固有の壊れにくさを指定します。100%が標準で、0%では非常に壊れやすく、大きいほど割れたりちぎれたりしにくくなります。</value></data>
 <data name="SolverIterations_Name" xml:space="preserve"><value>反復回数</value></data>
 <data name="SolverIterations_Desc" xml:space="preserve"><value>XPBDの計算を繰り返す回数を指定します。増やすほど硬い素材が安定し、GPU負荷も増えます。</value></data>
 <data name="ExplosionController_Name" xml:space="preserve"><value>制御点</value></data>

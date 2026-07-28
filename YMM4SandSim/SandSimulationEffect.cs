@@ -117,14 +117,14 @@ public sealed class SandSimulationEffect : VideoEffectBase
         SandSimulationSettings.AnimationMaximum);
 
     [Display(GroupName = nameof(Translate.Group_SolidPhysics), Name = nameof(Translate.Stiffness_Name), Description = nameof(Translate.Stiffness_Desc), ResourceType = typeof(Translate))]
-    [AnimationSlider("F1", "%", 25, SandSimulationSettings.PercentMultiplierSliderMaximum)]
+    [AnimationSlider("F1", "%", SandSimulationSettings.PercentMultiplierSliderMinimum, SandSimulationSettings.PercentMultiplierSliderMaximum)]
     public Animation SolidStiffness { get; } = new(
         100,
         SandSimulationSettings.PositiveAnimationMinimum,
         SandSimulationSettings.AnimationMaximum);
 
     [Display(GroupName = nameof(Translate.Group_SolidPhysics), Name = nameof(Translate.BreakStrength_Name), Description = nameof(Translate.BreakStrength_Desc), ResourceType = typeof(Translate))]
-    [AnimationSlider("F1", "%", 25, SandSimulationSettings.PercentMultiplierSliderMaximum)]
+    [AnimationSlider("F1", "%", SandSimulationSettings.PercentMultiplierSliderMinimum, SandSimulationSettings.PercentMultiplierSliderMaximum)]
     public Animation SolidBreakStrength { get; } = new(
         100,
         SandSimulationSettings.PositiveAnimationMinimum,

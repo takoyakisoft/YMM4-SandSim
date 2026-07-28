@@ -105,6 +105,29 @@ float4 RigidProperties(uint material)
     return float4(1.50f, 1.00f, 0.9980f, 0.20f);
 }
 
+// Controller explosions fracture connected bodies on a coarse lattice whose
+// physical scale is material-specific rather than tied to blast radius. This
+// keeps radius as a reach control while brittle glass/ice break into smaller
+// pieces and ductile metals/wood preserve larger chunks.
+uint RigidFractureSpanCells(uint material)
+{
+    float spanPixels = 96.0f;
+    if (material == MaterialCobaltGlass || material == MaterialIce) spanPixels = 32.0f;
+    else if (material == MaterialSandstone || material == MaterialCoral || material == MaterialCalcite) spanPixels = 56.0f;
+    else if (material == MaterialStone || material == MaterialBrick || material == MaterialQuartz ||
+             material == MaterialAmethyst || material == MaterialLapisLazuli || material == MaterialAzurite ||
+             material == MaterialFluorite || material == MaterialCharoite || material == MaterialRoseQuartz ||
+             material == MaterialRuby || material == MaterialJade || material == MaterialPrismarine ||
+             material == MaterialSeaLantern || material == MaterialEndStone || material == MaterialPermafrost) spanPixels = 80.0f;
+    else if (material == MaterialWood || material == MaterialAmber) spanPixels = 128.0f;
+    else if (material == MaterialMetal || material == MaterialCopper || material == MaterialGold ||
+             material == MaterialOxidizedCopper || material == MaterialVerdigris) spanPixels = 160.0f;
+    else if (material == MaterialPinkWax || material == MaterialPlant || material == MaterialMoss ||
+             material == MaterialGrass || material == MaterialAlgae || material == MaterialLeaf) spanPixels = 112.0f;
+
+    return max((uint)ceil(spanPixels / max((float)ParticleSize, 1.0f)), 2u);
+}
+
 // x=density relative to water, y=rigid velocity retention while overlapping it.
 float2 FluidProperties(uint material)
 {

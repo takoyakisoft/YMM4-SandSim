@@ -170,7 +170,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     // shatter before stone and metals usually receive velocity without breaking.
     const float impulseMagnitude = length(explosionImpulse);
     const float fractureThreshold = max(
-        rigidProperties.w * PhysicsBreakStrength * 2.0f, 0.04f);
+        rigidProperties.w * PhysicsBreakStrength * 2.0f, 1.0e-4f);
     if (impulseMagnitude > fractureThreshold)
     {
         const float probability = saturate((impulseMagnitude / fractureThreshold - 1.0f) * 0.70f);
@@ -180,7 +180,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             // Manual blasts cut a sparse coarse crack lattice. Connected-component
             // labels consume the persistent broken axial bonds on the next frame,
             // turning the resulting same-material islands into independent bodies.
-            const uint chunkSpan = max(PhysicsChunkSpan, 2u);
+            const uint chunkSpan = RigidFractureSpanCells(material);
             const bool eastBoundary = ((id.x + 1u) % chunkSpan) == 0u;
             const bool southBoundary = ((id.y + 1u) % chunkSpan) == 0u;
             const bool westBoundary = (id.x % chunkSpan) == 0u;

@@ -128,14 +128,14 @@ internal sealed class SandSimulationEffectProcessor : IVideoEffectProcessor
                 0f),
             SolidStiffness: ClampFiniteAtLeast(
                 _item.SolidStiffness.GetValue(frame, length, fps) / 100.0,
-                0.25f),
+                0f),
             SolidBreakStrength: ClampFiniteAtLeast(
                 _item.SolidBreakStrength.GetValue(frame, length, fps) / 100.0,
-                0.25f),
+                0f),
             SolidSolverIterations: ClampRounded(_item.SolidSolverIterations.GetValue(frame, length, fps), 1, SandSimulationSettings.MaximumSolidSolverIterations),
             ExplosionControllerEnabled: _item.ExplosionControllerEnabled,
-            ExplosionX: ClampFinite(_item.ExplosionX.GetValue(frame, length, fps), -SandSimulationSettings.MaximumCanvasSize, SandSimulationSettings.MaximumCanvasSize),
-            ExplosionY: ClampFinite(_item.ExplosionY.GetValue(frame, length, fps), -SandSimulationSettings.MaximumCanvasSize, SandSimulationSettings.MaximumCanvasSize),
+            ExplosionX: FiniteOrZero(_item.ExplosionX.GetValue(frame, length, fps)),
+            ExplosionY: FiniteOrZero(_item.ExplosionY.GetValue(frame, length, fps)),
             ExplosionTriggerFrame: RoundAtLeast(_item.ExplosionTriggerFrame.GetValue(frame, length, fps), 0),
             ExplosionStrength: ClampFiniteAtLeast(
                 _item.ExplosionStrength.GetValue(frame, length, fps) / 100.0,
@@ -560,10 +560,8 @@ internal sealed class SandSimulationEffectProcessor : IVideoEffectProcessor
             ? Math.Max((float)value, minimum)
             : minimum;
 
-    private static float ClampFinite(double value, float minimum, float maximum)
-        => double.IsFinite(value)
-            ? Math.Clamp((float)value, minimum, maximum)
-            : minimum;
+    private static float FiniteOrZero(double value)
+        => double.IsFinite(value) ? (float)value : 0f;
 
     private readonly record struct SourceGeometry(
         int Width,

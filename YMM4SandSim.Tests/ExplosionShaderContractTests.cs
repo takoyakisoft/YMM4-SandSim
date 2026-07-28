@@ -42,12 +42,13 @@ public sealed class ExplosionShaderContractTests
         Assert.Contains("IsInsideManualExplosionRegionAt(rigidBodyReference)", source);
         Assert.Contains("ManualExplosionBlastMaskAt(rigidBodyReference)", source);
         Assert.Contains("log2(max(ExplosionStrength, 1.0f))", source);
-        Assert.Contains("max(PhysicsChunkSpan, 2u)", source);
+        Assert.Contains("RigidFractureSpanCells(material)", source);
         Assert.Contains("RigidBodyLabel.Load", source);
         Assert.Contains("EstimateRigidBodyReference(id, current, rigidBodyOwner)", source);
         Assert.Contains("return delta / distance * impulseMagnitude", source);
         Assert.Contains("rsqrt(max(rigidDensity, 0.50f))", source);
         Assert.Contains("pressureGradient / gradientMagnitude", source);
+        Assert.DoesNotContain("PhysicsChunkSpan", source);
     }
 
     [Fact]

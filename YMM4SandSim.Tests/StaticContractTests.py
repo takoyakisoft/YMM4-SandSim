@@ -292,8 +292,8 @@ def test_constant_buffer_layout() -> None:
     hlsl_body = re.search(r"cbuffer SandConstants : register\(b0\)\s*\{(.*?)\};", core, re.S)
     cs_body = re.search(r"private struct GpuConstants\s*\{(.*?)\n\s*\}", gpu, re.S)
     check(hlsl_body is not None and cs_body is not None, "constant buffer definitions missing")
-    hlsl = re.findall(r"\b(?:uint|float)\s+(\w+)\s*;", hlsl_body.group(1))
-    csharp = re.findall(r"public (?:uint|float) (\w+);", cs_body.group(1))
+    hlsl = re.findall(r"\b(?:int|uint|float)\s+(\w+)\s*;", hlsl_body.group(1))
+    csharp = re.findall(r"public (?:int|uint|float) (\w+);", cs_body.group(1))
     check(hlsl == csharp, "HLSL/C# constant buffer layout mismatch")
     check(len(hlsl) == 48 and len(hlsl) % 4 == 0, "constant buffer must contain 48 aligned scalars")
 
@@ -353,6 +353,10 @@ def test_gpu_xpbd_contract() -> None:
     check("return IsFixed(material);" in behavior, "fixed materials must be owned by GPU solid physics")
     check("float4 RigidProperties" in behavior and "float2 FluidProperties" in behavior,
           "solid/fluid parameters must use packed property lookups")
+    check("uint RigidFractureSpanCells(uint material)" in behavior and
+          "MaterialCobaltGlass" in behavior and "MaterialMetal" in behavior and
+          "RigidFractureSpanCells(material)" in integrate and "PhysicsChunkSpan" not in integrate,
+          "controller fracture scale must be material-specific and independent from explosion radius")
     check("float RigidPairComplianceScale" in behavior and "float RigidPairBreakStrain" in behavior,
           "solid bond property helpers are missing")
     for token in ("SolidGravity", "SolidStiffness", "SolidBreakStrength", "SolidSolverIterations"):
@@ -368,6 +372,11 @@ def test_gpu_xpbd_contract() -> None:
           "solid solver slider must expose the same maximum used by runtime clamping")
     check("PhysicsGravity = 120.0f * parameters.SolidGravity" in gpu, "gravity UI must reach GPU constants")
     check("parameters.SolidStiffness" in gpu and "PhysicsCompliance" in gpu, "stiffness UI must reach XPBD compliance")
+    check("parameters.SolidStiffness > 0.0f" in gpu and ": 1.0f" in gpu and
+          "0.25f" not in gpu[gpu.find("PhysicsCompliance ="):gpu.find("PhysicsDamping =")],
+          "0 percent stiffness must not be silently raised to 25 percent")
+    check("1.0e-4f" in integrate and "0.04f" not in integrate[integrate.find("fractureThreshold"):integrate.find("if (impulseMagnitude > fractureThreshold)")],
+          "0 percent break strength must not retain the old large fracture floor")
     check("PhysicsSolverIterations = (uint)parameters.SolidSolverIterations" in gpu, "solver-iteration UI must reach GPU")
     check("IsRigidPhysicsMaterial(material)" in initialize, "cellular initializer must exclude rigid-owned cells")
     check("ExistingRigidOccupancy : register(t3)" in initialize and "occupiedByOtherRigid" in initialize,
@@ -897,16 +906,19 @@ def test_parameter_range_contract() -> None:
         'AnimationSlider("F1", "%", SandSimulationSettings.PercentMultiplierSliderMinimum, '
         "SandSimulationSettings.PercentMultiplierSliderMaximum)"
     )
-    check(effect.count(percent_slider_contract) == 4,
-          "reaction, gravity, explosion, and lighting must share the 0..400 percent initial range")
-    check(effect.count("25, SandSimulationSettings.PercentMultiplierSliderMaximum") == 2,
-          "stiffness and break strength must retain their safe minimum and 400 percent initial maximum")
+    check(effect.count(percent_slider_contract) == 6,
+          "all six multiplier controls must share the 0..400 percent initial range")
+    check("25, SandSimulationSettings.PercentMultiplierSliderMaximum" not in effect,
+          "stiffness and break strength must expose a real 0 percent value instead of a hidden 25 percent floor")
     processor = (PRODUCT / "SandSimulationEffectProcessor.cs").read_text(encoding="utf-8")
     check(processor.count("ClampFiniteAtLeast(") >= 6 and
           "MaximumNormalizedPercentMultiplier" not in processor,
           "percentage multipliers must keep their semantic minimum without a hidden runtime upper clamp")
     check("ExplosionRadius: RoundAtLeast(" in processor and "MaximumExplosionRadius" not in processor,
           "explosion radius must preserve typed pixel values without a hidden runtime upper clamp")
+    check("ExplosionX: FiniteOrZero(" in processor and "ExplosionY: FiniteOrZero(" in processor and
+          "MaximumCanvasSize" not in processor[processor.find("ExplosionX:"):processor.find("ExplosionTriggerFrame:")],
+          "explosion center must remain signed/off-screen instead of clamping to the canvas edge")
 
 def test_ymm4_ui_terminology_contract() -> None:
     effect = (PRODUCT / "SandSimulationEffect.cs").read_text(encoding="utf-8")
@@ -981,8 +993,9 @@ def test_release_and_localization_contract() -> None:
     check("<Version>" not in csproj,
           "project file must not duplicate the release version")
     check("bypassMinimumLevel: true" in plugin_log and
+          "Environment.GetEnvironmentVariable(LogLevelEnvironmentVariable)" in plugin_log and
           "#else\n        return PluginLogLevel.Error;\n#endif" in plugin_log,
-          "Release logging must always retain one startup record and otherwise keep errors only")
+          "Release logging must keep errors by default while allowing explicit support/performance opt-in")
     check("YMM4SandSimVersion" in workflow and "Tag/version mismatch" in workflow,
           "release workflow must read and validate the shared version")
     check("submodules: recursive" in workflow,
@@ -1061,6 +1074,18 @@ def test_optimization_contract() -> None:
           "CreatePhysicsTexture(Format.R32_Float, _stateWidth, _stateHeight)" in gpu and
           "CreatePhysicsTexture(Format.R32_UInt, _stateWidth, _stateHeight)" in gpu,
           "optional resource helpers must keep the established D3D11-compatible formats")
+    components_start = gpu.find("private void BuildRigidComponents(")
+    components_end = gpu.find("private void BuildRigidOccupancy(", components_start)
+    check(components_start >= 0 and components_end > components_start, "BuildRigidComponents method missing")
+    components_body = gpu[components_start:components_end]
+    check(components_body.count("CSSetShader(_rigidComponentsShader)") == 1 and
+          components_body.count("CSSetShaderResource(0, rigidMetaSrv)") == 1 and
+          components_body.count("CSSetUnorderedAccessView(0, rigidBodyLabelUav)") == 1 and
+          components_body.count("UnbindComputeViews()") == 1,
+          "connected-component rounds must keep invariant D3D11 state bound instead of rebinding every dispatch")
+    check("DiagnosticSampleWindow = 120" in gpu and "avgDispatches=" in gpu and
+          "CPU submit time is not GPU execution time" in gpu and "_context.Dispatch(" in gpu,
+          "performance diagnostics must report dispatch counts/CPU submit time without pretending to measure GPU time")
     start = gpu.find("private void BuildLighting(")
     end = gpu.find("private void ReactRigid(", start)
     check(start >= 0 and end > start, "BuildLighting method missing")
@@ -1071,6 +1096,23 @@ def test_optimization_contract() -> None:
     check("CSSetShaderResource(1" not in loop and "CSSetShaderResource(2" not in loop and "CSSetShaderResource(3" not in loop,
           "host must not bind material/occupancy SRVs during repeated light propagation passes")
 
+
+
+def test_documentation_contract() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    design = (ROOT / "docs" / "GPU_SOLID_PHYSICS.md").read_text(encoding="utf-8")
+    check("GPU Connected Components" in readme and "同一素材" in readme and "空洞" in readme,
+          "README must describe current same-material connected-body/empty-hole collision behavior")
+    check("52 byte/cell" in readme and "84 byte/cell" in readme and "166.1 MiB" in readme,
+          "README GPU memory figures must include connected-body label/contact state")
+    check("YMM4SANDSIM_LOG_LEVEL=Information" in readme and "cpuSubmitMs" in readme and
+          "GPU実行時間ではありません" in readme,
+          "README must document opt-in performance logging without calling CPU submit time GPU time")
+    check("GPU Connected Components" in design and "異素材間にはXPBD bondを張りません" in design and
+          "timestamp query" in design and "84 byte/cell" in design,
+          "GPU solid-physics design must match connected bodies, material separation, profiling, and memory layout")
+    for stale in ("XPBDは44 byte/cell", "全機能有効時は76 byte/cell", "約150.3 MiB"):
+        check(stale not in readme and stale not in design, f"stale documentation remains: {stale}")
 
 def main() -> None:
     entries = test_manifest()
@@ -1092,6 +1134,7 @@ def main() -> None:
     test_gpu_xpbd_contract()
     test_explosion_and_lighting_contract()
     test_optimization_contract()
+    test_documentation_contract()
     test_xpbd_phase_schedule()
     test_ca_odd_boundary_schedule()
     print("YMM4-SandSim static contract tests passed.")

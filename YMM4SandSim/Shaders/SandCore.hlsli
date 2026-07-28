@@ -43,18 +43,18 @@ cbuffer SandConstants : register(b0)
     float PhysicsCompliance;
     float PhysicsDamping;
 
-    uint PhysicsChunkSpan;
     uint PhysicsPadding0;
     uint PhysicsPadding1;
     uint PhysicsPadding2;
+    uint PhysicsPadding3;
 
     float ExplosionStrength;
     float ExplosionRadius;
     float ExplosionDecay;
     float ExplosionFalloff;
 
-    uint ManualExplosionCellX;
-    uint ManualExplosionCellY;
+    int ManualExplosionCellX;
+    int ManualExplosionCellY;
     uint ManualExplosionEnabled;
     uint ManualExplosionWaveStep;
 
