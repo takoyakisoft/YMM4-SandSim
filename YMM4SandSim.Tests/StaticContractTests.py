@@ -269,6 +269,9 @@ def test_shader_build_list() -> None:
           "shader compilation must track recursive includes and skip up-to-date bytecode")
     check("Start-Process -FilePath $FxcPath" in compile_script and "Get-ShaderCompilerParallelism" in compile_script,
           "shader compilation must run independent FXC processes in parallel")
+    check('[ValidateSet("Fast", "Release")]' in compile_script and
+          '"/O3"' in compile_script and '"/O0"' in compile_script and '$output.mode' in compile_script,
+          "shader compilation must retain explicit optimization modes for diagnostics")
     check("$tempOutput" in compile_script and
           "[IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $null)" in compile_script and
           "[IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)" in compile_script,
@@ -936,9 +939,9 @@ def test_ymm4_ui_terminology_contract() -> None:
     required_japanese = {
         "Group_Basic": "基本",
         "Group_Explosion": "爆発",
-        "Group_Lighting": "ライト",
-        "ScreenSize_Name": "スクリーンサイズ",
-        "ParticleSize_Name": "粒のサイズ",
+        "Group_Lighting": "照明",
+        "ScreenSize_Name": "画面サイズ",
+        "ParticleSize_Name": "粒サイズ",
         "Iterations_Name": "更新回数",
         "Warmup_Name": "初期更新回数",
         "ReactionStrength_Name": "反応の強さ",
@@ -949,9 +952,9 @@ def test_ymm4_ui_terminology_contract() -> None:
         "ExplosionY_Name": "中心Y",
         "ExplosionStrength_Name": "強さ",
         "ExplosionRadius_Name": "半径",
-        "LightingStrength_Name": "強さ",
+        "LightingStrength_Name": "光の強さ",
         "LightingRadius_Name": "半径",
-        "AmbientLight_Name": "明るさ",
+        "AmbientLight_Name": "環境光",
         "AlphaThreshold_Name": "不透明度の閾値",
         "LuminanceThreshold_Name": "輝度の閾値",
     }
@@ -1008,8 +1011,8 @@ def test_release_and_localization_contract() -> None:
           "release workflow must read and validate the shared version")
     check("submodules: recursive" in workflow,
           "release checkout must initialize the localization generator submodule")
-    check(".\\scripts\\dev.ps1 test" in workflow and ".\\scripts\\dev.ps1 publish" in workflow,
-          "release workflow must test and publish through the unified development script")
+    check(".\\scripts\\dev.ps1 test" not in workflow and ".\\scripts\\dev.ps1 publish" in workflow,
+          "release workflow must package through the unified script without rerunning local-only tests")
     check('$baseName = "YMM4SandSim-v$version"' in package_script and
           "YMM4SandSim/YMM4SandSim.dll" in package_script and
           "CreateFromDirectory" in package_script,
@@ -1050,6 +1053,20 @@ def test_local_build_configuration_contract() -> None:
           "repository build must not depend on a machine-specific MSBuild.exe location")
     check('"-p:FxcPath=$fxc"' in build_script,
           "resolved FXC path must be forwarded to the plugin build")
+    check('"-p:YMM4SandSimShaderOptimization=$Optimization"' in build_script and
+          build_script.count('Invoke-PluginBuild -Deploy -Optimization Release') >= 2,
+          "normal and publish builds must use final shader optimization")
+    check('-p:SkipShaderCompilation=true' in build_script,
+          "xUnit test builds must skip shader compilation")
+
+    test_project = (ROOT / "YMM4SandSim.Tests" / "YMM4SandSim.Tests.csproj").read_text(encoding="utf-8")
+    plugin_project = (PRODUCT / "YMM4SandSim.csproj").read_text(encoding="utf-8")
+    check("SkipShaderCompilation" in plugin_project and
+          "Condition=\"'$(SkipShaderCompilation)' != 'true'\"" in plugin_project,
+          "plugin project must omit shader generation and embedding only for C#-only tests")
+    check('Compile Remove="ShaderBytecodeTests.cs"' in test_project and
+          "'$(SkipShaderCompilation)' == 'true'" in test_project,
+          "bytecode-dependent tests must be excluded when shaders are intentionally absent")
     lint_function = re.search(r"function Invoke-Lint\s*\{(.*?)\r?\n\}", build_script, re.DOTALL)
     check(lint_function is not None and "dotnet build" not in lint_function.group(1),
           "lint must remain a non-build style/analyzer check")

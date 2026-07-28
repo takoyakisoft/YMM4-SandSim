@@ -4,7 +4,10 @@ param(
     [ValidateSet("build", "test", "fmt", "format", "lint", "check", "clean", "publish", "shaders")]
     [string]$Task = "build",
 
-    [switch]$Verify
+    [switch]$Verify,
+
+    [ValidateSet("Fast", "Release")]
+    [string]$ShaderOptimization = "Release"
 )
 
 $ErrorActionPreference = "Stop"
@@ -97,10 +100,16 @@ function Test-ShaderNeedsCompilation {
     param(
         [Parameter(Mandatory = $true)][string]$SourcePath,
         [Parameter(Mandatory = $true)][string]$OutputPath,
-        [Parameter(Mandatory = $true)][string]$ShaderDirectory
+        [Parameter(Mandatory = $true)][string]$StampPath,
+        [Parameter(Mandatory = $true)][string]$ShaderDirectory,
+        [Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization
     )
 
-    if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $StampPath -PathType Leaf)) {
+        return $true
+    }
+    if ((Get-Content -LiteralPath $StampPath -Raw).Trim() -ne $Optimization) {
         return $true
     }
 
@@ -115,7 +124,12 @@ function Test-ShaderNeedsCompilation {
 }
 
 function Get-ShaderCompilerParallelism {
-    $parallelism = [Math]::Max(1, [Math]::Min([Environment]::ProcessorCount, 4))
+    param([Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization)
+
+    # /O3 is CPU- and memory-heavy for the shared shader graph. Final builds
+    # favor reliability; iterative /O0 builds can safely use bounded parallelism.
+    $defaultLimit = if ($Optimization -eq "Release") { 1 } else { 4 }
+    $parallelism = [Math]::Max(1, [Math]::Min([Environment]::ProcessorCount, $defaultLimit))
     $configured = 0
     if ([int]::TryParse($env:YMM4SANDSIM_FXC_JOBS, [ref]$configured) -and $configured -gt 0) {
         $parallelism = [Math]::Min($configured, 16)
@@ -127,17 +141,19 @@ function Start-ShaderCompilerProcess {
     param(
         [Parameter(Mandatory = $true)][string]$FxcPath,
         [Parameter(Mandatory = $true)][string]$ShaderDirectory,
-        [Parameter(Mandatory = $true)]$ShaderJob
+        [Parameter(Mandatory = $true)]$ShaderJob,
+        [Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization
     )
 
     $token = [Guid]::NewGuid().ToString("N")
     $tempOutput = "$($ShaderJob.OutputPath).tmp.$token"
     $stdoutPath = "$tempOutput.stdout"
     $stderrPath = "$tempOutput.stderr"
+    $optimizationFlag = if ($Optimization -eq "Release") { "/O3" } else { "/O0" }
     $arguments = @(
         "/nologo",
         "/WX",
-        "/O3",
+        $optimizationFlag,
         "/T", $ShaderJob.Profile,
         "/E", "main",
         "/I", ('"{0}"' -f $ShaderDirectory),
@@ -145,7 +161,8 @@ function Start-ShaderCompilerProcess {
         ('"{0}"' -f $ShaderJob.SourcePath)
     ) -join " "
 
-    Write-Host "Compiling $($ShaderJob.Source) [$($ShaderJob.Profile)]"
+    Write-Host "Compiling $($ShaderJob.Source) [$($ShaderJob.Profile), $optimizationFlag]"
+    $startedAt = [DateTime]::UtcNow
     $process = Start-Process -FilePath $FxcPath -ArgumentList $arguments -NoNewWindow -PassThru `
         -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
 
@@ -156,6 +173,8 @@ function Start-ShaderCompilerProcess {
         TempOutput = $tempOutput
         StdoutPath = $stdoutPath
         StderrPath = $stderrPath
+        Optimization = $Optimization
+        StartedAt = $startedAt
     }
 }
 
@@ -166,6 +185,7 @@ function Complete-ShaderCompilerProcess {
     $process.WaitForExit()
     $exitCode = $process.ExitCode
     $process.Dispose()
+    $elapsed = [DateTime]::UtcNow - $ActiveJob.StartedAt
 
     $stdout = if (Test-Path -LiteralPath $ActiveJob.StdoutPath -PathType Leaf) {
         Get-Content -LiteralPath $ActiveJob.StdoutPath -Raw
@@ -177,7 +197,8 @@ function Complete-ShaderCompilerProcess {
     try {
         if ($exitCode -ne 0) {
             $details = (($stdout, $stderr) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine
-            throw "FXC failed for $($ActiveJob.Job.Source) with exit code $exitCode.$([Environment]::NewLine)$details"
+            throw ("FXC failed for {0} after {1:n1}s with exit code {2}.{3}{4}" -f `
+                $ActiveJob.Job.Source, $elapsed.TotalSeconds, $exitCode, [Environment]::NewLine, $details)
         }
         if (-not (Test-Path -LiteralPath $ActiveJob.TempOutput -PathType Leaf)) {
             throw "FXC reported success but output is missing: $($ActiveJob.Job.OutputPath)"
@@ -189,7 +210,8 @@ function Complete-ShaderCompilerProcess {
         else {
             [IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)
         }
-        Write-Host "Compiled $($ActiveJob.Job.Source)"
+        [IO.File]::WriteAllText($ActiveJob.Job.StampPath, $ActiveJob.Optimization)
+        Write-Host ("Compiled {0} in {1:n1}s" -f $ActiveJob.Job.Source, $elapsed.TotalSeconds)
     }
     finally {
         Remove-Item -LiteralPath $ActiveJob.TempOutput, $ActiveJob.StdoutPath, $ActiveJob.StderrPath `
@@ -198,6 +220,8 @@ function Complete-ShaderCompilerProcess {
 }
 
 function Invoke-ShaderBuild {
+    param([Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization)
+
     $fxc = Get-RequiredFileProperty "FxcPath"
     $shaderDirectory = Join-Path $root "YMM4SandSim\Shaders"
     $shaderJobs = @(
@@ -220,34 +244,39 @@ function Invoke-ShaderBuild {
     foreach ($shader in $shaderJobs) {
         $source = Join-Path $shaderDirectory $shader.Source
         $output = [IO.Path]::ChangeExtension($source, ".cso")
+        $stamp = "$output.mode"
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
             throw "Shader source was not found: $source"
         }
 
-        if (Test-ShaderNeedsCompilation -SourcePath $source -OutputPath $output -ShaderDirectory $shaderDirectory) {
+        if (Test-ShaderNeedsCompilation -SourcePath $source -OutputPath $output -StampPath $stamp `
+            -ShaderDirectory $shaderDirectory -Optimization $Optimization) {
             $compileJobs += [pscustomobject]@{
                 Source = $shader.Source
                 Profile = $shader.Profile
                 SourcePath = $source
                 OutputPath = $output
+                StampPath = $stamp
             }
         }
     }
 
     if ($compileJobs.Count -eq 0) {
-        Write-Host "Shaders are up to date."
+        Write-Host "Shaders are up to date ($Optimization)."
         return
     }
 
-    $parallelism = Get-ShaderCompilerParallelism
-    Write-Host "Compiling $($compileJobs.Count) shader(s) with up to $parallelism parallel FXC process(es)."
+    $parallelism = Get-ShaderCompilerParallelism -Optimization $Optimization
+    $optimizationFlag = if ($Optimization -eq "Release") { "/O3" } else { "/O0" }
+    Write-Host "Compiling $($compileJobs.Count) shader(s) in $Optimization mode ($optimizationFlag) with up to $parallelism FXC process(es)."
 
     $nextJob = 0
     $active = @()
     $failure = $null
     while ($nextJob -lt $compileJobs.Count -or $active.Count -gt 0) {
         while ($null -eq $failure -and $nextJob -lt $compileJobs.Count -and $active.Count -lt $parallelism) {
-            $active += Start-ShaderCompilerProcess -FxcPath $fxc -ShaderDirectory $shaderDirectory -ShaderJob $compileJobs[$nextJob]
+            $active += Start-ShaderCompilerProcess -FxcPath $fxc -ShaderDirectory $shaderDirectory `
+                -ShaderJob $compileJobs[$nextJob] -Optimization $Optimization
             $nextJob++
         }
 
@@ -271,16 +300,37 @@ function Invoke-ShaderBuild {
         $active = @($active | Where-Object { $_.Token -notin $completedTokens })
         if ($null -ne $failure) {
             $nextJob = $compileJobs.Count
+            foreach ($running in $active) {
+                try {
+                    if (-not $running.Process.HasExited) {
+                        $running.Process.Kill()
+                    }
+                    $running.Process.WaitForExit()
+                }
+                catch {
+                    # Preserve the first FXC failure; cancellation is best-effort.
+                }
+                finally {
+                    $running.Process.Dispose()
+                    Remove-Item -LiteralPath $running.TempOutput, $running.StdoutPath, $running.StderrPath `
+                        -Force -ErrorAction SilentlyContinue
+                }
+            }
+            $active = @()
         }
     }
 
     if ($null -ne $failure) {
+        Write-Error -Message $failure.Exception.Message -ErrorAction Continue
         throw $failure
     }
 }
 
 function Invoke-PluginBuild {
-    param([switch]$Deploy)
+    param(
+        [switch]$Deploy,
+        [Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization
+    )
 
     $dotnet = Get-RequiredFileProperty "DotnetPath"
     $ymm4Dir = [IO.Path]::GetFullPath((Get-BuildProperty "YMM4DirPath"))
@@ -294,7 +344,8 @@ function Invoke-PluginBuild {
     Invoke-CommandChecked "Build plugin and shaders" {
         & $dotnet build $pluginProject -c Release -p:Platform=x64 `
             "-p:YMM4DirPath=$ymm4Dir" "-p:FxcPath=$fxc" `
-            "-p:SkipPluginDeploy=$skipDeploy"
+            "-p:SkipPluginDeploy=$skipDeploy" `
+            "-p:YMM4SandSimShaderOptimization=$Optimization"
     }
 }
 
@@ -332,7 +383,8 @@ function Invoke-Tests {
     $dotnet = Get-RequiredFileProperty "DotnetPath"
     $testProject = Join-Path $root "YMM4SandSim.Tests\YMM4SandSim.Tests.csproj"
     Invoke-CommandChecked "Run xUnit tests" {
-        & $dotnet test $testProject -c Release -p:Platform=x64 -p:SkipPluginDeploy=true
+        & $dotnet test $testProject -c Release -p:Platform=x64 -p:SkipPluginDeploy=true `
+            -p:SkipShaderCompilation=true
     }
 }
 
@@ -368,7 +420,8 @@ function Remove-BuildOutputs {
         }
     }
 
-    Get-ChildItem -LiteralPath (Join-Path $root "YMM4SandSim\Shaders") -Filter "*.cso" -File |
+    Get-ChildItem -LiteralPath (Join-Path $root "YMM4SandSim\Shaders") -File |
+        Where-Object { $_.Name -match '\.cso(?:\.mode)?$' } |
         ForEach-Object {
             Write-Host "Removing YMM4SandSim\Shaders\$($_.Name)"
             Remove-Item -LiteralPath $_.FullName -Force
@@ -460,7 +513,7 @@ function New-ReleasePackage {
 
 switch ($Task) {
     "build" {
-        Invoke-PluginBuild -Deploy
+        Invoke-PluginBuild -Deploy -Optimization Release
     }
     "test" {
         Invoke-Tests
@@ -483,10 +536,10 @@ switch ($Task) {
         Remove-BuildOutputs
     }
     "shaders" {
-        Invoke-ShaderBuild
+        Invoke-ShaderBuild -Optimization $ShaderOptimization
     }
     "publish" {
-        Invoke-PluginBuild -Deploy
+        Invoke-PluginBuild -Deploy -Optimization Release
         New-ReleasePackage
     }
 }

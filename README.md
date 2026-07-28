@@ -232,7 +232,7 @@ DebugビルドはInformationが既定で、必要に応じて環境変数`YMM4SA
 
 `Directory.Build.props`を作成済みなら、直接`dotnet`を実行する場合もローカル設定が読み込まれます。
 
-開発用コマンドは次の構成です。`fmt`と`format`は同じ動作で、`check`は整形、リント、テストを順に実行します。`clean`はリポジトリ内のビルド出力、生成済みシェーダー、配布成果物を削除します。シェーダーは各HLSLから再帰的にたどった`#include`の更新時刻を確認し、必要な`.cso`だけを`fxc.exe /O3 /WX`で再生成します。複数のシェーダーが必要な場合は既定で最大4プロセスを並列実行し、`YMM4SANDSIM_FXC_JOBS`で1～16へ変更できます。
+開発用コマンドは次の構成です。`fmt`と`format`は同じ動作で、`check`は整形、リント、テストを順に実行します。`clean`はリポジトリ内のビルド出力、生成済みシェーダー、配布成果物を削除します。シェーダーは各HLSLから再帰的にたどった`#include`の更新時刻を確認し、必要な`.cso`だけを再生成します。通常の`build`と`test`は反復開発向けのFXC `/O0 /WX`を使用し、`publish`だけが最終配布用の`/O3 /WX`へ切り替えます。最適化モードも増分判定へ含めるため、`test`後の`publish`では最終版CSOを必ず作り直します。Fastモードは既定で最大4プロセス、Releaseモードは高負荷な`/O3`同士の競合を避けるため既定1プロセスで実行し、`YMM4SANDSIM_FXC_JOBS`で1～16へ変更できます。
 
 ```powershell
 .\scripts\dev.ps1             # build
@@ -250,7 +250,7 @@ dotnet build .\YMM4SandSim\YMM4SandSim.csproj -c Release -p:Platform=x64
 
 ## テスト
 
-静的契約テストとxUnitテストは、次のコマンドで実行します。
+静的契約テストとxUnitテストは、次のコマンドで実行します。xUnit用のプラグインビルドではFastモードのシェーダーを使用するため、最終配布用`/O3`の長時間最適化は行いません。
 
 ```powershell
 .\scripts\dev.ps1 test
@@ -271,7 +271,7 @@ dotnet build .\YMM4SandSim\YMM4SandSim.csproj -c Release -p:Platform=x64
 ## リリースと翻訳
 
 リリース番号は[Directory.Build.targets](Directory.Build.targets)の`YMM4SandSimVersion`だけを変更します。
-`v0.5.0`のように同じ番号のタグをpushすると、GitHub Actionsが最新のYMM4を取得してRelease/x64をビルドし、`.ymme`を含む配布用ZIPをArtifactsとGitHub Releasesへ登録します。
+`v0.5.0`のように同じ番号のタグをpushすると、GitHub Actionsが最新のYMM4を取得し、Releaseモードの`/O3`シェーダーとRelease/x64プラグインから`.ymme`を含む配布用ZIPを生成してArtifactsとGitHub Releasesへ登録します。テストはタグworkflowでは再実行せず、公開前にローカルの`.\scripts\dev.ps1 test`で確認します。
 
 ローカルでビルド、配置、パッケージ生成をまとめて行う場合は、次のコマンドを実行します。
 

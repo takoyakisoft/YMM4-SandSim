@@ -13,6 +13,8 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <AssemblyName>YMM4SandSim</AssemblyName>
     <RootNamespace>YMM4SandSim</RootNamespace>
+    <YMM4SandSimShaderOptimization Condition="'$(YMM4SandSimShaderOptimization)' == ''">Release</YMM4SandSimShaderOptimization>
+    <SkipShaderCompilation Condition="'$(SkipShaderCompilation)' == ''">false</SkipShaderCompilation>
   </PropertyGroup>
 
   <ItemGroup>
@@ -63,7 +65,7 @@
       <ShaderType>ps_5_0</ShaderType>
     </HlslShader>
     <ShaderInclude Include="Shaders\**\*.hlsli" />
-    <EmbeddedResource Include="@(HlslShader->'%(RelativeDir)%(Filename).cso')">
+    <EmbeddedResource Include="@(HlslShader->'%(RelativeDir)%(Filename).cso')" Condition="'$(SkipShaderCompilation)' != 'true'">
       <LogicalName>YMM4SandSim.Shaders.%(Filename).cso</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
@@ -75,10 +77,11 @@
     </HlslShader>
   </ItemDefinitionGroup>
 
-  <Target Name="CompileHLSLShaders" BeforeTargets="BeforeBuild">
-    <Message Text="Checking incremental HLSL build with FXC /O3" Importance="high" />
+  <Target Name="CompileHLSLShaders" BeforeTargets="BeforeBuild" Condition="'$(SkipShaderCompilation)' != 'true'">
+    <Message Text="Checking incremental HLSL build ($(YMM4SandSimShaderOptimization))" Importance="high" />
     <Error Text="fxc.exe not found at path: $(FxcPath)" Condition="!Exists('$(FxcPath)') AND '$(FxcPath)' != 'fxc.exe'" />
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\scripts\dev.ps1&quot; shaders" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\scripts\dev.ps1&quot; shaders -ShaderOptimization &quot;$(YMM4SandSimShaderOptimization)&quot;"
+          ConsoleToMSBuild="true" StandardOutputImportance="High" StandardErrorImportance="High" />
   </Target>
 
   <ItemGroup>
