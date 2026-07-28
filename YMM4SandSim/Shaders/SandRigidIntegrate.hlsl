@@ -3,6 +3,7 @@
 Texture2D<uint> RigidMeta : register(t0);
 Texture2D<uint> CellularMeta : register(t1);
 Texture2D<float> ExplosionPressure : register(t2);
+Texture2D<uint> RigidBodyLabel : register(t3);
 RWTexture2D<float4> RigidState : register(u0); // xy=current, zw=previous
 RWTexture2D<float4> RigidLambda : register(u1);
 
@@ -13,35 +14,36 @@ float ReadExplosionPressure(int2 p)
     return ExplosionPressure.Load(int3(p, 0));
 }
 
-float2 ExplosionImpulseAt(uint2 cell, float rigidDensity)
+float2 ExplosionImpulseAt(uint2 cell, float2 rigidBodyReference, float rigidDensity)
 {
     if (ExplosionStrength <= 0.0f)
         return 0.0f;
 
     const int2 p = int2(cell);
     const float centerPressure = ReadExplosionPressure(p);
-    const float densityScale = rsqrt(max(rigidDensity, 0.50f));
 
-    if (IsInsideManualExplosionRegion(cell))
+    if (IsInsideManualExplosionRegionAt(rigidBodyReference))
     {
-        const float frontMask = ManualExplosionBlastMask(cell);
+        const float frontMask = ManualExplosionBlastMaskAt(rigidBodyReference);
         if (frontMask <= 0.0f)
             return 0.0f;
 
-        const float2 delta = float2(cell) - float2(ManualExplosionCellX, ManualExplosionCellY);
+        const float2 delta = rigidBodyReference - float2(ManualExplosionCellX, ManualExplosionCellY);
         const float distance = length(delta);
         if (distance < 0.0001f)
             return 0.0f;
 
-        // Controller blasts are an impulse event, not an acoustic CA solver.
-        // Use the Euclidean front directly so large radii still complete in a
-        // few simulation iterations. Material explosions continue to use the
-        // pressure texture and its shielding below.
+        // Controller blasts are coherent per connected, same-material body. The
+        // component representative supplies one shared direction, so distant
+        // islands and neighbouring different materials no longer inherit the same
+        // impulse merely because they fall inside one fixed macro rectangle.
         const float strengthScale = sqrt(max(ExplosionStrength, 0.0f));
         const float impulseMagnitude =
-            frontMask * (0.55f + strengthScale * 0.65f) * densityScale;
+            frontMask * (0.55f + strengthScale * 0.65f);
         return delta / distance * impulseMagnitude;
     }
+
+    const float densityScale = rsqrt(max(rigidDensity, 0.50f));
 
     const float left = ReadExplosionPressure(p + int2(-1, 0));
     const float right = ReadExplosionPressure(p + int2(1, 0));
@@ -108,7 +110,11 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     }
     const float damping = PhysicsDamping * rigidProperties.z * fluidVelocityRetention;
     float2 velocity = (current - state.zw) * damping;
-    const float2 explosionImpulse = ExplosionImpulseAt(currentCell, rigidProperties.x);
+    const uint rigidBodyOwner = RigidBodyLabel.Load(int3(id, 0));
+    const float2 rigidBodyReference = EstimateRigidBodyReference(id, current, rigidBodyOwner);
+    const bool manualMacroBlast = IsInsideManualExplosionRegionAt(rigidBodyReference) &&
+        ManualExplosionBlastMaskAt(rigidBodyReference) > 0.0f;
+    const float2 explosionImpulse = ExplosionImpulseAt(currentCell, rigidBodyReference, rigidProperties.x);
     velocity += explosionImpulse;
 
     // Keep one substep below one cell so the final-cell occupancy broadphase
@@ -116,7 +122,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     // velocity alone. XPBD projection can still move points, but this removes
     // the dominant tunnelling source without a swept-contact buffer.
     float maximumRigidStep = 0.95f;
-    if (length(explosionImpulse) > 0.0001f && IsInsideManualExplosionRegion(currentCell))
+    if (length(explosionImpulse) > 0.0001f && manualMacroBlast)
     {
         // Let stronger explosions produce visibly more travel without an
         // arbitrary 4-cell ceiling. Growth is logarithmic to keep the final-cell
@@ -169,18 +175,16 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     {
         const float probability = saturate((impulseMagnitude / fractureThreshold - 1.0f) * 0.70f);
         const uint salt = StepIndex * 0x9e3779b9u;
-        if (IsInsideManualExplosionRegion(currentCell))
+        if (manualMacroBlast)
         {
-            // Manual blasts should throw recognizable chunks, not atomize every
-            // lattice cell. FallingSand-style bodies are connected regions rather
-            // than per-cell bodies; use a much coarser fracture grid here until
-            // component-level rigid proxies are introduced.
-            const uint chunkSpan = max(
-                8u, (uint)ceil(96.0f / max((float)ParticleSize, 1.0f)));
+            // Manual blasts cut a sparse coarse crack lattice. Connected-component
+            // labels consume the persistent broken axial bonds on the next frame,
+            // turning the resulting same-material islands into independent bodies.
+            const uint chunkSpan = max(PhysicsChunkSpan, 2u);
             const bool eastBoundary = ((id.x + 1u) % chunkSpan) == 0u;
             const bool southBoundary = ((id.y + 1u) % chunkSpan) == 0u;
             const bool westBoundary = (id.x % chunkSpan) == 0u;
-            const float chunkProbability = probability * 0.72f;
+            const float chunkProbability = saturate(probability * sqrt(max(ExplosionStrength, 1.0f)));
 
             if (eastBoundary && HashUnit(id, salt + 0u) < chunkProbability)
                 nextLambda.x = BrokenRigidBondMarker;

@@ -46,6 +46,7 @@ internal sealed class SandSimulationGpu : IDisposable
     private readonly ID3D11ComputeShader _rigidIntegrateShader;
     private readonly ID3D11ComputeShader _rigidSolveShader;
     private readonly ID3D11ComputeShader _rigidGridShader;
+    private readonly ID3D11ComputeShader _rigidComponentsShader;
     private readonly ID3D11ComputeShader _rigidReactShader;
     private readonly ID3D11ComputeShader _explosionUpdateShader;
     private readonly ID3D11ComputeShader _lightSeedShader;
@@ -80,10 +81,16 @@ internal sealed class SandSimulationGpu : IDisposable
     private ID3D11ShaderResourceView? _rigidMetaSrv;
     private ID3D11UnorderedAccessView? _rigidMetaUav;
     private ID3D11Texture2D? _rigidLambdaTexture;
+    private ID3D11ShaderResourceView? _rigidLambdaSrv;
     private ID3D11UnorderedAccessView? _rigidLambdaUav;
     private ID3D11Texture2D? _rigidOccupancyTexture;
     private ID3D11ShaderResourceView? _rigidOccupancySrv;
     private ID3D11UnorderedAccessView? _rigidOccupancyUav;
+    private ID3D11Texture2D? _rigidBodyContactTexture;
+    private ID3D11UnorderedAccessView? _rigidBodyContactUav;
+    private ID3D11Texture2D? _rigidBodyLabelTexture;
+    private ID3D11ShaderResourceView? _rigidBodyLabelSrv;
+    private ID3D11UnorderedAccessView? _rigidBodyLabelUav;
 
     private readonly ID3D11Texture2D?[] _explosionPressureTextures = new ID3D11Texture2D?[2];
     private readonly ID3D11ShaderResourceView?[] _explosionPressureSrvs = new ID3D11ShaderResourceView?[2];
@@ -123,6 +130,7 @@ internal sealed class SandSimulationGpu : IDisposable
         ID3D11ComputeShader rigidIntegrateShader,
         ID3D11ComputeShader rigidSolveShader,
         ID3D11ComputeShader rigidGridShader,
+        ID3D11ComputeShader rigidComponentsShader,
         ID3D11ComputeShader rigidReactShader,
         ID3D11ComputeShader explosionUpdateShader,
         ID3D11ComputeShader lightSeedShader,
@@ -143,6 +151,7 @@ internal sealed class SandSimulationGpu : IDisposable
         _rigidIntegrateShader = rigidIntegrateShader;
         _rigidSolveShader = rigidSolveShader;
         _rigidGridShader = rigidGridShader;
+        _rigidComponentsShader = rigidComponentsShader;
         _rigidReactShader = rigidReactShader;
         _explosionUpdateShader = explosionUpdateShader;
         _lightSeedShader = lightSeedShader;
@@ -169,6 +178,7 @@ internal sealed class SandSimulationGpu : IDisposable
         ID3D11ComputeShader? rigidIntegrateShader = null;
         ID3D11ComputeShader? rigidSolveShader = null;
         ID3D11ComputeShader? rigidGridShader = null;
+        ID3D11ComputeShader? rigidComponentsShader = null;
         ID3D11ComputeShader? rigidReactShader = null;
         ID3D11ComputeShader? explosionUpdateShader = null;
         ID3D11ComputeShader? lightSeedShader = null;
@@ -196,6 +206,7 @@ internal sealed class SandSimulationGpu : IDisposable
             rigidIntegrateShader = device.CreateComputeShader(ShaderBytecode.Load("SandRigidIntegrate"));
             rigidSolveShader = device.CreateComputeShader(ShaderBytecode.Load("SandRigidSolve"));
             rigidGridShader = device.CreateComputeShader(ShaderBytecode.Load("SandRigidGrid"));
+            rigidComponentsShader = device.CreateComputeShader(ShaderBytecode.Load("SandRigidComponents"));
             rigidReactShader = device.CreateComputeShader(ShaderBytecode.Load("SandRigidReact"));
             explosionUpdateShader = device.CreateComputeShader(ShaderBytecode.Load("SandExplosionUpdate"));
             lightSeedShader = device.CreateComputeShader(ShaderBytecode.Load("SandLightSeed"));
@@ -228,6 +239,7 @@ internal sealed class SandSimulationGpu : IDisposable
                 rigidIntegrateShader,
                 rigidSolveShader,
                 rigidGridShader,
+                rigidComponentsShader,
                 rigidReactShader,
                 explosionUpdateShader,
                 lightSeedShader,
@@ -254,6 +266,7 @@ internal sealed class SandSimulationGpu : IDisposable
             lightSeedShader?.Dispose();
             explosionUpdateShader?.Dispose();
             rigidReactShader?.Dispose();
+            rigidComponentsShader?.Dispose();
             rigidGridShader?.Dispose();
             rigidSolveShader?.Dispose();
             rigidIntegrateShader?.Dispose();
@@ -402,6 +415,7 @@ internal sealed class SandSimulationGpu : IDisposable
                 var destinationMetaSrv = _stateMetaSrvs[destination]
                     ?? throw new InvalidOperationException("Destination metadata SRV is not initialized.");
                 InitializeRigid(in constants, destinationMetaSrv, rigidOccupancySrv);
+                BuildRigidComponents(ref constants);
                 BuildRigidOccupancy(ref constants, resolveConflicts: true, destinationMetaSrv);
             }
             UnbindCompute();
@@ -439,6 +453,9 @@ internal sealed class SandSimulationGpu : IDisposable
             _manualExplosionWaveVisible = false;
             if (parameters.ManualExplosion && parameters.ExplosionStrength > 0.0f)
                 StartManualExplosionWave(in constants);
+
+            if (solidPhysicsEnabled)
+                BuildRigidComponents(ref constants);
 
             for (var i = 0; i < iterations; i++)
             {
@@ -650,6 +667,8 @@ internal sealed class SandSimulationGpu : IDisposable
             _context.CSSetShaderResource(2, _explosionPressureSrvs[_currentExplosionPressure]
                 ?? throw new InvalidOperationException("Explosion pressure SRV is not initialized."));
         }
+        _context.CSSetShaderResource(3, _rigidBodyLabelSrv
+            ?? throw new InvalidOperationException("Rigid body label SRV is not initialized."));
         _context.CSSetUnorderedAccessView(0, rigidStateUav);
         _context.CSSetUnorderedAccessView(1, rigidLambdaUav);
         _context.Dispatch(DivideRoundUp(_stateWidth, 8), DivideRoundUp(_stateHeight, 8), 1);
@@ -665,6 +684,8 @@ internal sealed class SandSimulationGpu : IDisposable
             UpdateConstants(_rigidSolveConstantBuffers[phase], in constants);
         }
         _context.CSSetShaderResource(0, rigidMetaSrv);
+        _context.CSSetShaderResource(1, _rigidBodyLabelSrv
+            ?? throw new InvalidOperationException("Rigid body label SRV is not initialized."));
         _context.CSSetUnorderedAccessView(0, rigidStateUav);
         _context.CSSetUnorderedAccessView(1, rigidLambdaUav);
         for (uint solverIteration = 0; solverIteration < constants.PhysicsSolverIterations; solverIteration++)
@@ -858,6 +879,56 @@ internal sealed class SandSimulationGpu : IDisposable
         UnbindComputeViews();
     }
 
+    private void BuildRigidComponents(ref GpuConstants constants)
+    {
+        var rigidMetaSrv = _rigidMetaSrv
+            ?? throw new InvalidOperationException("Rigid metadata SRV is not initialized.");
+        var rigidLambdaSrv = _rigidLambdaSrv
+            ?? throw new InvalidOperationException("Rigid lambda SRV is not initialized.");
+        var rigidBodyLabelUav = _rigidBodyLabelUav
+            ?? throw new InvalidOperationException("Rigid body label UAV is not initialized.");
+
+        constants.PhysicsPass = 0u;
+        UpdateConstants(in constants);
+        _context.CSSetShader(_rigidComponentsShader);
+        _context.CSSetConstantBuffer(0, _constantBuffer);
+        _context.CSSetShaderResource(0, rigidMetaSrv);
+        _context.CSSetShaderResource(1, rigidLambdaSrv);
+        _context.CSSetUnorderedAccessView(0, rigidBodyLabelUav);
+        _context.Dispatch(DivideRoundUp(_stateWidth, 8), DivideRoundUp(_stateHeight, 8), 1);
+        UnbindComputeViews();
+
+        var maximumDimension = Math.Max(_logicalStateWidth, _logicalStateHeight);
+        var rounds = 2;
+        for (var span = 1; span < maximumDimension && rounds < 16; span <<= 1)
+            rounds++;
+
+        for (var round = 0; round < rounds; round++)
+        {
+            constants.PhysicsPass = 1u;
+            UpdateConstants(in constants);
+            _context.CSSetShader(_rigidComponentsShader);
+            _context.CSSetConstantBuffer(0, _constantBuffer);
+            _context.CSSetShaderResource(0, rigidMetaSrv);
+            _context.CSSetShaderResource(1, rigidLambdaSrv);
+            _context.CSSetUnorderedAccessView(0, rigidBodyLabelUav);
+            _context.Dispatch(DivideRoundUp(_stateWidth, 8), DivideRoundUp(_stateHeight, 8), 1);
+            UnbindComputeViews();
+
+            constants.PhysicsPass = 2u;
+            UpdateConstants(in constants);
+            _context.CSSetShader(_rigidComponentsShader);
+            _context.CSSetConstantBuffer(0, _constantBuffer);
+            _context.CSSetShaderResource(0, rigidMetaSrv);
+            _context.CSSetShaderResource(1, rigidLambdaSrv);
+            _context.CSSetUnorderedAccessView(0, rigidBodyLabelUav);
+            _context.Dispatch(DivideRoundUp(_stateWidth, 8), DivideRoundUp(_stateHeight, 8), 1);
+            UnbindComputeViews();
+        }
+
+        constants.PhysicsPass = 0u;
+    }
+
     private void BuildRigidOccupancy(
         ref GpuConstants constants,
         bool resolveConflicts,
@@ -871,6 +942,10 @@ internal sealed class SandSimulationGpu : IDisposable
             ?? throw new InvalidOperationException("Rigid metadata SRV is not initialized.");
         var rigidOccupancyUav = _rigidOccupancyUav
             ?? throw new InvalidOperationException("Rigid occupancy UAV is not initialized.");
+        var rigidBodyContactUav = _rigidBodyContactUav
+            ?? throw new InvalidOperationException("Rigid body contact UAV is not initialized.");
+        var rigidBodyLabelSrv = _rigidBodyLabelSrv
+            ?? throw new InvalidOperationException("Rigid body label SRV is not initialized.");
         var cellularMetaSrv = cellularMetaOverride ?? _stateMetaSrvs[_currentState]
             ?? throw new InvalidOperationException("Current cellular metadata SRV is not initialized.");
 
@@ -882,6 +957,7 @@ internal sealed class SandSimulationGpu : IDisposable
             _context.CSSetShader(_rigidGridShader);
             _context.CSSetConstantBuffer(0, _constantBuffer);
             _context.CSSetUnorderedAccessView(0, rigidOccupancyUav);
+            _context.CSSetUnorderedAccessView(2, rigidBodyContactUav);
             _context.Dispatch(DivideRoundUp(_stateWidth, 8), DivideRoundUp(_stateHeight, 8), 1);
             UnbindComputeViews();
 
@@ -900,8 +976,19 @@ internal sealed class SandSimulationGpu : IDisposable
             UpdateConstants(in constants);
             _context.CSSetShaderResource(0, rigidMetaSrv);
             _context.CSSetShaderResource(2, cellularMetaSrv);
+            _context.CSSetShaderResource(3, rigidBodyLabelSrv);
             _context.CSSetUnorderedAccessView(0, rigidOccupancyUav);
             _context.CSSetUnorderedAccessView(1, rigidStateUav);
+            _context.CSSetUnorderedAccessView(2, rigidBodyContactUav);
+            _context.Dispatch(DivideRoundUp(_stateWidth, 8), DivideRoundUp(_stateHeight, 8), 1);
+            UnbindComputeViews();
+
+            constants.PhysicsPass = 3u;
+            UpdateConstants(in constants);
+            _context.CSSetShaderResource(0, rigidMetaSrv);
+            _context.CSSetShaderResource(3, rigidBodyLabelSrv);
+            _context.CSSetUnorderedAccessView(1, rigidStateUav);
+            _context.CSSetUnorderedAccessView(2, rigidBodyContactUav);
             _context.Dispatch(DivideRoundUp(_stateWidth, 8), DivideRoundUp(_stateHeight, 8), 1);
             UnbindComputeViews();
         }
@@ -1077,8 +1164,10 @@ internal sealed class SandSimulationGpu : IDisposable
         if (_rigidStateSrv is not null && _rigidStateUav is not null &&
             _rigidColorSrv is not null && _rigidColorUav is not null &&
             _rigidMetaSrv is not null && _rigidMetaUav is not null &&
-            _rigidLambdaUav is not null &&
-            _rigidOccupancySrv is not null && _rigidOccupancyUav is not null)
+            _rigidLambdaSrv is not null && _rigidLambdaUav is not null &&
+            _rigidOccupancySrv is not null && _rigidOccupancyUav is not null &&
+            _rigidBodyContactUav is not null &&
+            _rigidBodyLabelSrv is not null && _rigidBodyLabelUav is not null)
         {
             return;
         }
@@ -1095,10 +1184,16 @@ internal sealed class SandSimulationGpu : IDisposable
         ID3D11ShaderResourceView? rigidMetaSrv = null;
         ID3D11UnorderedAccessView? rigidMetaUav = null;
         ID3D11Texture2D? rigidLambda = null;
+        ID3D11ShaderResourceView? rigidLambdaSrv = null;
         ID3D11UnorderedAccessView? rigidLambdaUav = null;
         ID3D11Texture2D? rigidOccupancy = null;
         ID3D11ShaderResourceView? rigidOccupancySrv = null;
         ID3D11UnorderedAccessView? rigidOccupancyUav = null;
+        ID3D11Texture2D? rigidBodyContact = null;
+        ID3D11UnorderedAccessView? rigidBodyContactUav = null;
+        ID3D11Texture2D? rigidBodyLabel = null;
+        ID3D11ShaderResourceView? rigidBodyLabelSrv = null;
+        ID3D11UnorderedAccessView? rigidBodyLabelUav = null;
 
         try
         {
@@ -1112,10 +1207,16 @@ internal sealed class SandSimulationGpu : IDisposable
             rigidMetaSrv = _device.CreateShaderResourceView(rigidMeta);
             rigidMetaUav = _device.CreateUnorderedAccessView(rigidMeta);
             rigidLambda = CreatePhysicsTexture(Format.R32G32B32A32_Float, _stateWidth, _stateHeight);
+            rigidLambdaSrv = _device.CreateShaderResourceView(rigidLambda);
             rigidLambdaUav = _device.CreateUnorderedAccessView(rigidLambda);
             rigidOccupancy = CreatePhysicsTexture(Format.R32_UInt, _stateWidth, _stateHeight);
             rigidOccupancySrv = _device.CreateShaderResourceView(rigidOccupancy);
             rigidOccupancyUav = _device.CreateUnorderedAccessView(rigidOccupancy);
+            rigidBodyContact = CreatePhysicsTexture(Format.R32_UInt, _stateWidth, _stateHeight);
+            rigidBodyContactUav = _device.CreateUnorderedAccessView(rigidBodyContact);
+            rigidBodyLabel = CreatePhysicsTexture(Format.R32_UInt, _stateWidth, _stateHeight);
+            rigidBodyLabelSrv = _device.CreateShaderResourceView(rigidBodyLabel);
+            rigidBodyLabelUav = _device.CreateUnorderedAccessView(rigidBodyLabel);
 
             _rigidStateTexture = rigidState;
             _rigidStateSrv = rigidStateSrv;
@@ -1127,18 +1228,30 @@ internal sealed class SandSimulationGpu : IDisposable
             _rigidMetaSrv = rigidMetaSrv;
             _rigidMetaUav = rigidMetaUav;
             _rigidLambdaTexture = rigidLambda;
+            _rigidLambdaSrv = rigidLambdaSrv;
             _rigidLambdaUav = rigidLambdaUav;
             _rigidOccupancyTexture = rigidOccupancy;
             _rigidOccupancySrv = rigidOccupancySrv;
             _rigidOccupancyUav = rigidOccupancyUav;
+            _rigidBodyContactTexture = rigidBodyContact;
+            _rigidBodyContactUav = rigidBodyContactUav;
+            _rigidBodyLabelTexture = rigidBodyLabel;
+            _rigidBodyLabelSrv = rigidBodyLabelSrv;
+            _rigidBodyLabelUav = rigidBodyLabelUav;
 
         }
         catch
         {
+            rigidBodyLabelUav?.Dispose();
+            rigidBodyLabelSrv?.Dispose();
+            rigidBodyLabel?.Dispose();
+            rigidBodyContactUav?.Dispose();
+            rigidBodyContact?.Dispose();
             rigidOccupancyUav?.Dispose();
             rigidOccupancySrv?.Dispose();
             rigidOccupancy?.Dispose();
             rigidLambdaUav?.Dispose();
+            rigidLambdaSrv?.Dispose();
             rigidLambda?.Dispose();
             rigidMetaUav?.Dispose();
             rigidMetaSrv?.Dispose();
@@ -1259,6 +1372,18 @@ internal sealed class SandSimulationGpu : IDisposable
 
     private void ReleaseRigidResources()
     {
+        _rigidBodyLabelUav?.Dispose();
+        _rigidBodyLabelSrv?.Dispose();
+        _rigidBodyLabelTexture?.Dispose();
+        _rigidBodyLabelUav = null;
+        _rigidBodyLabelSrv = null;
+        _rigidBodyLabelTexture = null;
+
+        _rigidBodyContactUav?.Dispose();
+        _rigidBodyContactTexture?.Dispose();
+        _rigidBodyContactUav = null;
+        _rigidBodyContactTexture = null;
+
         _rigidOccupancyUav?.Dispose();
         _rigidOccupancySrv?.Dispose();
         _rigidOccupancyTexture?.Dispose();
@@ -1267,8 +1392,10 @@ internal sealed class SandSimulationGpu : IDisposable
         _rigidOccupancyTexture = null;
 
         _rigidLambdaUav?.Dispose();
+        _rigidLambdaSrv?.Dispose();
         _rigidLambdaTexture?.Dispose();
         _rigidLambdaUav = null;
+        _rigidLambdaSrv = null;
         _rigidLambdaTexture = null;
 
         _rigidMetaUav?.Dispose();
@@ -1476,6 +1603,12 @@ internal sealed class SandSimulationGpu : IDisposable
     {
         var manualExplosionCellX = ResolveExplosionCell(parameters.ManualExplosionX, _sourceWidth, _logicalStateWidth, parameters.ParticleSize);
         var manualExplosionCellY = ResolveExplosionCell(parameters.ManualExplosionY, _sourceHeight, _logicalStateHeight, parameters.ParticleSize);
+        // Connected components define body size. This span is used only as a
+        // sparse fracture scale for controller explosions, derived from the
+        // configured blast radius rather than from a separate chunk-size UI.
+        var physicsChunkSpan = (uint)Math.Max(
+            12,
+            (int)MathF.Ceiling(parameters.ExplosionRadius * 0.35f));
         return new GpuConstants
         {
             SourceWidth = (uint)_sourceWidth,
@@ -1510,6 +1643,10 @@ internal sealed class SandSimulationGpu : IDisposable
             PhysicsGravity = 120.0f * parameters.SolidGravity,
             PhysicsCompliance = 0.000001f / Math.Max(parameters.SolidStiffness, 0.25f),
             PhysicsDamping = 0.998f,
+            PhysicsChunkSpan = physicsChunkSpan,
+            PhysicsPadding0 = 0u,
+            PhysicsPadding1 = 0u,
+            PhysicsPadding2 = 0u,
             ExplosionStrength = parameters.ExplosionStrength,
             ExplosionRadius = parameters.ExplosionRadius,
             ExplosionDecay = 0.58f,
@@ -1574,6 +1711,7 @@ internal sealed class SandSimulationGpu : IDisposable
         _lightSeedShader.Dispose();
         _explosionUpdateShader.Dispose();
         _rigidReactShader.Dispose();
+        _rigidComponentsShader.Dispose();
         _rigidGridShader.Dispose();
         _rigidSolveShader.Dispose();
         _rigidIntegrateShader.Dispose();
@@ -1629,6 +1767,11 @@ internal sealed class SandSimulationGpu : IDisposable
         public float PhysicsGravity;
         public float PhysicsCompliance;
         public float PhysicsDamping;
+
+        public uint PhysicsChunkSpan;
+        public uint PhysicsPadding0;
+        public uint PhysicsPadding1;
+        public uint PhysicsPadding2;
 
         public float ExplosionStrength;
         public float ExplosionRadius;

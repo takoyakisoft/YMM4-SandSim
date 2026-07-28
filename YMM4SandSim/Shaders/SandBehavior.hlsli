@@ -119,16 +119,39 @@ float2 FluidProperties(uint material)
     return float2(0.0f, 1.0f);
 }
 
-float RigidPairComplianceScale(float4 propertiesA, float4 propertiesB, bool sameMaterial)
+float RigidPairComplianceScale(float4 propertiesA, float4 propertiesB, bool sameCohesiveRegion)
 {
     const float baseScale = max(propertiesA.y, propertiesB.y);
-    return sameMaterial ? baseScale : baseScale * 1.75f;
+    return sameCohesiveRegion ? baseScale : baseScale * 1.75f;
 }
 
-float RigidPairBreakStrain(float4 propertiesA, float4 propertiesB, bool sameMaterial)
+float RigidPairBreakStrain(float4 propertiesA, float4 propertiesB, bool sameCohesiveRegion)
 {
     const float baseStrain = min(propertiesA.w, propertiesB.w);
-    return sameMaterial ? baseStrain : baseStrain * 0.70f;
+    return sameCohesiveRegion ? baseStrain : baseStrain * 0.70f;
+}
+
+uint2 RigidBodySource(uint owner)
+{
+    const uint index = owner - 1u;
+    return uint2(index % StateWidth, index / StateWidth);
+}
+
+bool IsValidRigidBodyOwner(uint owner)
+{
+    return owner != 0u && owner != 0xffffffffu;
+}
+
+float2 EstimateRigidBodyReference(uint2 sourceId, float2 currentPosition, uint bodyOwner)
+{
+    if (!IsValidRigidBodyOwner(bodyOwner))
+        return currentPosition - 0.5f;
+
+    const uint2 representative = RigidBodySource(bodyOwner);
+    // Connected-component labels are source-space identities. Approximate the
+    // representative's current location from this particle's translation so all
+    // members receive one coherent controller-blast direction without CPU state.
+    return currentPosition - 0.5f + float2(representative) - float2(sourceId);
 }
 
 static const float BrokenRigidBondMarker = 1.0e20f;
@@ -165,19 +188,29 @@ bool HasManualExplosionWave()
     return ManualExplosionWaveStep != InactiveManualExplosionWaveStep;
 }
 
+float ManualExplosionDistanceAt(float2 position)
+{
+    const float2 delta = position - float2(ManualExplosionCellX, ManualExplosionCellY);
+    return length(delta);
+}
+
 float ManualExplosionDistance(uint2 cell)
 {
-    const float2 delta = float2(cell) - float2(ManualExplosionCellX, ManualExplosionCellY);
-    return length(delta);
+    return ManualExplosionDistanceAt(float2(cell));
+}
+
+bool IsInsideManualExplosionRegionAt(float2 position)
+{
+    return HasManualExplosionWave() &&
+        ManualExplosionDistanceAt(position) <= max(ExplosionRadius, 1.0f) + 1.0f;
 }
 
 bool IsInsideManualExplosionRegion(uint2 cell)
 {
-    return HasManualExplosionWave() &&
-        ManualExplosionDistance(cell) <= max(ExplosionRadius, 1.0f) + 1.0f;
+    return IsInsideManualExplosionRegionAt(float2(cell));
 }
 
-float ManualExplosionWaveMask(uint2 cell)
+float ManualExplosionWaveMaskAt(float2 position)
 {
     if (!HasManualExplosionWave())
         return 0.0f;
@@ -186,18 +219,23 @@ float ManualExplosionWaveMask(uint2 cell)
     if (waveRadius > max(ExplosionRadius, 1.0f))
         return 0.0f;
 
-    const float distance = ManualExplosionDistance(cell);
+    const float distance = ManualExplosionDistanceAt(position);
     const float halfWidth = 0.75f;
     return saturate(1.0f - abs(distance - waveRadius) / halfWidth);
 }
 
-float ManualExplosionBlastMask(uint2 cell)
+float ManualExplosionWaveMask(uint2 cell)
+{
+    return ManualExplosionWaveMaskAt(float2(cell));
+}
+
+float ManualExplosionBlastMaskAt(float2 position)
 {
     if (!HasManualExplosionWave())
         return 0.0f;
 
     const float waveRadius = (float)ManualExplosionWaveStep;
-    const float distance = ManualExplosionDistance(cell);
+    const float distance = ManualExplosionDistanceAt(position);
     if (waveRadius > max(ExplosionRadius, 1.0f) || distance > waveRadius + 0.75f)
         return 0.0f;
 
@@ -212,7 +250,12 @@ float ManualExplosionBlastMask(uint2 cell)
     const float trailWidth = propagationStride + 1.0f + strengthScale;
     const float behindFront = max(waveRadius - distance, 0.0f);
     const float trail = saturate(1.0f - behindFront / trailWidth);
-    return max(ManualExplosionWaveMask(cell), trail);
+    return max(ManualExplosionWaveMaskAt(position), trail);
+}
+
+float ManualExplosionBlastMask(uint2 cell)
+{
+    return ManualExplosionBlastMaskAt(float2(cell));
 }
 
 float ManualExplosionCavityRadius()

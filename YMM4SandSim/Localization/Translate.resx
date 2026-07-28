@@ -72,7 +72,7 @@
 <data name="SourceMode_Name" xml:space="preserve"><value>入力モード</value></data>
 <data name="SourceMode_Desc" xml:space="preserve"><value>初期フレームのみ素材化、空セルへの継続追加、選択位置への毎フレーム再配置を選びます。XPBD固定素材は1入力セル1スロットのため、継続追加では同じソースセルから重複生成しません。</value></data>
 <data name="ParticleSize_Name" xml:space="preserve"><value>粒のサイズ</value></data>
-<data name="ParticleSize_Desc" xml:space="preserve"><value>1セルに対応するピクセル数を指定します。大きいほど高速でGPUメモリを節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・ライト有効時は約150 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。</value></data>
+<data name="ParticleSize_Desc" xml:space="preserve"><value>1セルに対応するピクセル数を指定します。大きいほど高速でGPUメモリを節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・ライト有効時は約166 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。</value></data>
 <data name="MaterialAssignment_Name" xml:space="preserve"><value>素材の割り当て</value></data>
 <data name="MaterialAssignment_Desc" xml:space="preserve"><value>入力色を55色へ分類し、各色に1種類だけ割り当てた物理素材へ変換するか、単一素材へ変換します。</value></data>
 <data name="SingleMaterial_Name" xml:space="preserve"><value>単一素材</value></data>

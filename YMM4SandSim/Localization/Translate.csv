@@ -12,7 +12,7 @@ ScreenSize_Desc,desc,画面サイズに合わせてシミュレーションし�
 SourceMode_Name,name,入力モード,Input Mode
 SourceMode_Desc,desc,初期フレームのみ素材化、空セルへの継続追加、選択位置への毎フレーム再配置を選びます。XPBD固定素材は1入力セル1スロットのため、継続追加では同じソースセルから重複生成しません。,"Selects initial-frame capture, continuous filling of empty cells, or restamping selected positions every frame. XPBD solids use one slot per input cell and are not duplicated by continuous input."
 ParticleSize_Name,name,粒のサイズ,Particle Size
-ParticleSize_Desc,desc,1セルに対応するピクセル数を指定します。大きいほど高速でGPUメモリを節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・ライト有効時は約150 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。,"Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 150 MiB. The state budget is about 304 MiB."
+ParticleSize_Desc,desc,1セルに対応するピクセル数を指定します。大きいほど高速でGPUメモリを節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・ライト有効時は約166 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。,"Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 166 MiB. The state budget is about 304 MiB."
 MaterialAssignment_Name,name,素材の割り当て,Material Assignment
 MaterialAssignment_Desc,desc,入力色を55色へ分類し、各色に1種類だけ割り当てた物理素材へ変換するか、単一素材へ変換します。,"Classifies the source into 55 colors mapped one-to-one to physical materials, or converts it to one material."
 SingleMaterial_Name,name,単一素材,Single Material

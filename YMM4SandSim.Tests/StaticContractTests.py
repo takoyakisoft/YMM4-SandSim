@@ -295,7 +295,7 @@ def test_constant_buffer_layout() -> None:
     hlsl = re.findall(r"\b(?:uint|float)\s+(\w+)\s*;", hlsl_body.group(1))
     csharp = re.findall(r"public (?:uint|float) (\w+);", cs_body.group(1))
     check(hlsl == csharp, "HLSL/C# constant buffer layout mismatch")
-    check(len(hlsl) == 44 and len(hlsl) % 4 == 0, "constant buffer must contain 44 aligned scalars")
+    check(len(hlsl) == 48 and len(hlsl) % 4 == 0, "constant buffer must contain 48 aligned scalars")
 
 def test_multi_instance_graph_and_context_contract() -> None:
     processor = (PRODUCT / "SandSimulationEffectProcessor.cs").read_text(encoding="utf-8")
@@ -342,6 +342,7 @@ def test_gpu_xpbd_contract() -> None:
     integrate = (SHADERS / "SandRigidIntegrate.hlsl").read_text(encoding="utf-8")
     solve = (SHADERS / "SandRigidSolve.hlsl").read_text(encoding="utf-8")
     grid = (SHADERS / "SandRigidGrid.hlsl").read_text(encoding="utf-8")
+    components = (SHADERS / "SandRigidComponents.hlsl").read_text(encoding="utf-8")
     react = (SHADERS / "SandRigidReact.hlsl").read_text(encoding="utf-8")
     step = (SHADERS / "SandStep.hlsl").read_text(encoding="utf-8")
     render = (SHADERS / "SandRenderPS.hlsl").read_text(encoding="utf-8")
@@ -353,12 +354,12 @@ def test_gpu_xpbd_contract() -> None:
     check("float4 RigidProperties" in behavior and "float2 FluidProperties" in behavior,
           "solid/fluid parameters must use packed property lookups")
     check("float RigidPairComplianceScale" in behavior and "float RigidPairBreakStrain" in behavior,
-          "mixed-material bond helpers are missing")
-    check("sameMaterial ? baseStrain : baseStrain * 0.70f" in behavior,
-          "mixed-material interfaces must fracture before homogeneous bonds")
+          "solid bond property helpers are missing")
     for token in ("SolidGravity", "SolidStiffness", "SolidBreakStrength", "SolidSolverIterations"):
         check(f"public Animation {token}" in effect, f"missing solid-physics UI parameter: {token}")
         check(f"{token}:" in processor, f"processor does not forward solid-physics UI parameter: {token}")
+    check("SolidChunkSize" not in effect and "SolidChunkSize" not in processor,
+          "fixed macro-size UI must be removed when connected components define body size")
     check('AnimationSlider("F0", "回", 1, SandSimulationSettings.MaximumIterationsPerFrame)' in effect,
           "speed slider must expose the same maximum used by runtime clamping")
     check('AnimationSlider("F0", "回", 0, SandSimulationSettings.MaximumWarmupIterations)' in effect,
@@ -398,12 +399,15 @@ def test_gpu_xpbd_contract() -> None:
           "properties11 = RigidProperties(material11)" in solve and
           "1.0f / max(propertiesA.x" in solve and "1.0f / max(propertiesB.x" in solve,
           "per-material density/inverse mass must load properties once per active 2x2 cell and reuse them across bonds")
-    check("if (active00 && active10)" in solve and "if (active10 && active01)" in solve,
-          "solver must avoid bond work when either endpoint is inactive")
-    check("RigidPairComplianceScale(propertiesA, propertiesB, sameMaterial)" in solve,
+    check("if (active00 && active10 && sameBody00_10)" in solve and "if (active10 && active01 && sameBody10_01)" in solve,
+          "solver must avoid bond work across inactive or separate-body endpoints")
+    check("RigidPairComplianceScale(propertiesA, propertiesB, sameCohesiveRegion)" in solve,
           "per-material XPBD compliance is missing")
-    check("RigidPairBreakStrain(propertiesA, propertiesB, sameMaterial)" in solve and "tensileStrain" in solve,
+    check("RigidPairBreakStrain(propertiesA, propertiesB, sameCohesiveRegion)" in solve and "tensileStrain" in solve,
           "per-material tensile fracture is missing")
+    check("RigidBodyLabel : register(t1)" in solve and "sameBody00_10" in solve and
+          "active00 && active10 && sameBody00_10" in solve and "IsSameRigidMacro" not in solve,
+          "XPBD bonds must exist only inside one same-material connected body")
     check("* PhysicsBreakStrength" in solve, "global fracture-strength UI multiplier is missing")
     check("solveHorizontal" in solve and "solveVertical" in solve,
           "axial constraints must not be duplicated across shifted parity phases")
@@ -414,9 +418,25 @@ def test_gpu_xpbd_contract() -> None:
     check("(PhysicsPhase >> 1u) & 1u" in solve and "phase < 4u" in gpu,
           "all four 2x2 parity phases must be solved for full 8-neighbour coverage")
     check("InterlockedMin" in grid, "deterministic GPU grid ownership is missing")
+    check("RigidBodyLabel : register(t3)" in grid and "RigidBodyContact : register(u2)" in grid and
+          "bodyOwner = RigidBodyLabel.Load" in grid and "PhysicsPass == 3u" in grid and
+          "RigidBodyContact[bodyCell]" in grid and "InterlockedOr" in grid and
+          "StopRigidAxes" in grid and "RigidContactHorizontal" in grid and "RigidContactVertical" in grid,
+          "rigid collision must propagate axis-specific external contact across one connected body")
+    check("CSSetUnorderedAccessView(2, rigidBodyContactUav)" in gpu and "PhysicsPass = 3u" in gpu and
+          "CSSetShaderResource(3, rigidBodyLabelSrv)" in gpu,
+          "host must execute the connected-body contact resolve pass")
     check("IsRigidPhysicsMaterial(material)" in grid, "grid rasterization must ignore non-rigid transition states")
-    check("IsPowder(cellularMaterial) || IsFixed(cellularMaterial)" in grid,
-          "powder and CA-created solids must support rigid bodies")
+    check("return IsFixedCell(target) || IsOccupiedByOtherBody(id, target);" in grid and
+          "IsPowder" not in extract_hlsl_function(grid, "bool HasExternalObstacle("),
+          "loose powder must not erase body momentum while fixed CA solids still block rigid bodies")
+    check("RigidBodyLabel : register(u0)" in components and "RigidMeta : register(t0)" in components and
+          "RigidLambda : register(t1)" in components and "InterlockedMin(RigidBodyLabel" in components and
+          "GetMaterial(RigidMeta.Load(int3(second, 0))) != material" in components and
+          "id + uint2(1u, 0u)" in components and "id + uint2(0u, 1u)" in components,
+          "rigid bodies must be GPU-labelled four-neighbour same-material connected components")
+    check('ShaderBytecode.Load("SandRigidComponents")' in gpu and "BuildRigidComponents(ref constants)" in gpu,
+          "host must build connected rigid-body labels without CPU readback")
     check("EmptyRigidOwner = 0xffffffffu" in grid and "EmptyRigidOwner = 0xffffffffu" in step,
           "rigid occupancy sentinel mismatch")
     check("RigidOccupancy : register(t2)" in step, "cellular solver must consume rigid occupancy")
@@ -456,6 +476,7 @@ def test_gpu_xpbd_contract() -> None:
         ("rigid integrate", integrate),
         ("rigid solve", solve),
         ("rigid grid", grid),
+        ("rigid components", components),
         ("rigid react", react),
     ):
         check(text.count("{") == text.count("}"), f"{name}: unbalanced braces")
@@ -824,7 +845,7 @@ def test_gpu_memory_guard() -> None:
     translations = read_translations()
     check("MaximumSimulationStateBytes = 318_767_104" in settings,
           "GPU simulation state budget must remain capped at ~304 MiB")
-    for name, value in (("CellularStateBytesPerCell", 16), ("RigidStateBytesPerCell", 44),
+    for name, value in (("CellularStateBytesPerCell", 16), ("RigidStateBytesPerCell", 52),
                         ("ExplosionStateBytesPerCell", 8), ("LightingStateBytesPerCell", 8)):
         check(f"{name} = {value}" in settings, f"missing per-feature memory cost: {name}")
     check("GetSimulationStateBytesPerCell" in settings and

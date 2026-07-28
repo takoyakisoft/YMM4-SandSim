@@ -39,13 +39,44 @@ public sealed class ExplosionShaderContractTests
     {
         var source = ReadShader("SandRigidIntegrate.hlsl");
 
-        Assert.Contains("IsInsideManualExplosionRegion(cell)", source);
-        Assert.Contains("ManualExplosionBlastMask(cell)", source);
+        Assert.Contains("IsInsideManualExplosionRegionAt(rigidBodyReference)", source);
+        Assert.Contains("ManualExplosionBlastMaskAt(rigidBodyReference)", source);
         Assert.Contains("log2(max(ExplosionStrength, 1.0f))", source);
-        Assert.Contains("96.0f / max((float)ParticleSize, 1.0f)", source);
+        Assert.Contains("max(PhysicsChunkSpan, 2u)", source);
+        Assert.Contains("RigidBodyLabel.Load", source);
+        Assert.Contains("EstimateRigidBodyReference(id, current, rigidBodyOwner)", source);
         Assert.Contains("return delta / distance * impulseMagnitude", source);
         Assert.Contains("rsqrt(max(rigidDensity, 0.50f))", source);
         Assert.Contains("pressureGradient / gradientMagnitude", source);
+    }
+
+    [Fact]
+    public void ConnectedBodyContactsPreserveTangentialBlastMomentum()
+    {
+        var grid = ReadShader("SandRigidGrid.hlsl");
+        var integrate = ReadShader("SandRigidIntegrate.hlsl");
+
+        Assert.Contains("RigidContactHorizontal", grid);
+        Assert.Contains("RigidContactVertical", grid);
+        Assert.Contains("RigidBodyLabel.Load", grid);
+        Assert.Contains("InterlockedOr(RigidBodyContact[bodyCell], contactMask", grid);
+        Assert.Contains("StopRigidAxes(id, contactMask)", grid);
+        Assert.DoesNotContain("IsPowder(cellularMaterial) || IsFixed(cellularMaterial)", grid);
+        Assert.Contains("saturate(probability * sqrt(max(ExplosionStrength, 1.0f)))", integrate);
+    }
+
+    [Fact]
+    public void RigidBodiesAreSameMaterialConnectedComponents()
+    {
+        var components = ReadShader("SandRigidComponents.hlsl");
+        var solve = ReadShader("SandRigidSolve.hlsl");
+
+        Assert.Contains("GetMaterial(RigidMeta.Load(int3(second, 0))) != material", components);
+        Assert.Contains("id + uint2(1u, 0u)", components);
+        Assert.Contains("id + uint2(0u, 1u)", components);
+        Assert.Contains("InterlockedMin(RigidBodyLabel", components);
+        Assert.Contains("sameBody00_10", solve);
+        Assert.DoesNotContain("IsSameRigidMacro", solve);
     }
 
     [Fact]

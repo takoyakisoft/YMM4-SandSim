@@ -9,7 +9,7 @@ internal static class SandSimulationSettings
     // by MaximumSourcePixelCount.
     public const long MaximumSimulationStateBytes = 318_767_104;
     private const int CellularStateBytesPerCell = 16;
-    private const int RigidStateBytesPerCell = 44;
+    private const int RigidStateBytesPerCell = 52;
     private const int ExplosionStateBytesPerCell = 8;
     private const int LightingStateBytesPerCell = 8;
     public const int MaximumIterationsPerFrame = 32;

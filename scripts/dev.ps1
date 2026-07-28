@@ -62,6 +62,7 @@ function Invoke-ShaderBuild {
         @{ Source = "SandRigidIntegrate.hlsl";  Profile = "cs_5_0" },
         @{ Source = "SandRigidSolve.hlsl";      Profile = "cs_5_0" },
         @{ Source = "SandRigidGrid.hlsl";       Profile = "cs_5_0" },
+        @{ Source = "SandRigidComponents.hlsl"; Profile = "cs_5_0" },
         @{ Source = "SandRigidReact.hlsl";      Profile = "cs_5_0" },
         @{ Source = "SandExplosionUpdate.hlsl"; Profile = "cs_5_0" },
         @{ Source = "SandLightSeed.hlsl";       Profile = "cs_5_0" },

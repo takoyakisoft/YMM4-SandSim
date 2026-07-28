@@ -41,6 +41,9 @@
     <HlslShader Include="Shaders\SandRigidGrid.hlsl">
       <ShaderType>cs_5_0</ShaderType>
     </HlslShader>
+    <HlslShader Include="Shaders\SandRigidComponents.hlsl">
+      <ShaderType>cs_5_0</ShaderType>
+    </HlslShader>
     <HlslShader Include="Shaders\SandRigidReact.hlsl">
       <ShaderType>cs_5_0</ShaderType>
     </HlslShader>

@@ -72,7 +72,7 @@
 <data name="SourceMode_Name" xml:space="preserve"><value>Input Mode</value></data>
 <data name="SourceMode_Desc" xml:space="preserve"><value>Selects initial-frame capture, continuous filling of empty cells, or restamping selected positions every frame. XPBD solids use one slot per input cell and are not duplicated by continuous input.</value></data>
 <data name="ParticleSize_Name" xml:space="preserve"><value>Particle Size</value></data>
-<data name="ParticleSize_Desc" xml:space="preserve"><value>Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 150 MiB. The state budget is about 304 MiB.</value></data>
+<data name="ParticleSize_Desc" xml:space="preserve"><value>Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 166 MiB. The state budget is about 304 MiB.</value></data>
 <data name="MaterialAssignment_Name" xml:space="preserve"><value>Material Assignment</value></data>
 <data name="MaterialAssignment_Desc" xml:space="preserve"><value>Classifies the source into 55 colors mapped one-to-one to physical materials, or converts it to one material.</value></data>
 <data name="SingleMaterial_Name" xml:space="preserve"><value>Single Material</value></data>
