@@ -1,8 +1,10 @@
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("build", "test", "format", "lint", "publish", "shaders")]
-    [string]$Task = "build"
+    [ValidateSet("build", "test", "fmt", "format", "lint", "check", "clean", "publish")]
+    [string]$Task = "build",
+
+    [switch]$Verify
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,48 +54,6 @@ function Invoke-CommandChecked {
     }
 }
 
-function Invoke-ShaderBuild {
-    $fxc = Get-RequiredFileProperty "FxcPath"
-    $shaderDirectory = Join-Path $root "YMM4SandSim\Shaders"
-    $shaders = @(
-        @{ Source = "SandInitialize.hlsl";      Profile = "cs_5_0" },
-        @{ Source = "SandStep.hlsl";            Profile = "cs_5_0" },
-        @{ Source = "SandRigidInitialize.hlsl"; Profile = "cs_5_0" },
-        @{ Source = "SandRigidIntegrate.hlsl";  Profile = "cs_5_0" },
-        @{ Source = "SandRigidSolve.hlsl";      Profile = "cs_5_0" },
-        @{ Source = "SandRigidGrid.hlsl";       Profile = "cs_5_0" },
-        @{ Source = "SandRigidComponents.hlsl"; Profile = "cs_5_0" },
-        @{ Source = "SandRigidReact.hlsl";      Profile = "cs_5_0" },
-        @{ Source = "SandExplosionUpdate.hlsl"; Profile = "cs_5_0" },
-        @{ Source = "SandLightSeed.hlsl";       Profile = "cs_5_0" },
-        @{ Source = "SandLightPropagate.hlsl";  Profile = "cs_5_0" },
-        @{ Source = "SandFullscreenVS.hlsl";    Profile = "vs_5_0" },
-        @{ Source = "SandRenderPS.hlsl";        Profile = "ps_5_0" }
-    )
-
-    $listedSources = @($shaders | ForEach-Object Source)
-    $unlistedSources = @(
-        Get-ChildItem -LiteralPath $shaderDirectory -Filter "*.hlsl" -File |
-            Where-Object { $_.Name -notin $listedSources } |
-            ForEach-Object Name
-    )
-    if ($unlistedSources.Count -ne 0) {
-        throw "HLSL source is not in dev.ps1: $($unlistedSources -join ', ')"
-    }
-
-    foreach ($shader in $shaders) {
-        $source = Join-Path $shaderDirectory $shader.Source
-        $output = Join-Path $shaderDirectory "$([IO.Path]::GetFileNameWithoutExtension($shader.Source)).cso"
-        Remove-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue
-        Invoke-CommandChecked "Compile $($shader.Source) [$($shader.Profile)]" {
-            & $fxc /nologo /O3 /Ges /WX /I $shaderDirectory /T $shader.Profile /E main /Fo $output $source
-        }
-        if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
-            throw "FXC reported success but output is missing: $output"
-        }
-    }
-}
-
 function Invoke-PluginBuild {
     param([switch]$Deploy)
 
@@ -114,17 +74,85 @@ function Invoke-PluginBuild {
 }
 
 function Invoke-DotnetFormat {
-    param([Parameter(Mandatory = $true)][string]$Subcommand)
+    param(
+        [string]$Subcommand,
+        [switch]$VerifyNoChanges
+    )
 
     $dotnet = Get-RequiredFileProperty "DotnetPath"
     foreach ($project in @(
         (Join-Path $root "YMM4SandSim\YMM4SandSim.csproj"),
         (Join-Path $root "YMM4SandSim.Tests\YMM4SandSim.Tests.csproj")
     )) {
+        $arguments = @("format")
+        if (-not [string]::IsNullOrWhiteSpace($Subcommand)) {
+            $arguments += $Subcommand
+        }
+        $arguments += @($project, "--verbosity", "minimal")
+        if ($VerifyNoChanges) {
+            $arguments += "--verify-no-changes"
+        }
         Invoke-CommandChecked "dotnet format $Subcommand $([IO.Path]::GetFileName($project))" {
-            & $dotnet format $Subcommand $project --verbosity minimal
+            & $dotnet @arguments
         }
     }
+}
+
+function Invoke-Tests {
+    $python = Get-RequiredFileProperty "PythonPath"
+    Invoke-CommandChecked "Run static contract tests" {
+        & $python (Join-Path $root "YMM4SandSim.Tests\StaticContractTests.py")
+    }
+
+    $dotnet = Get-RequiredFileProperty "DotnetPath"
+    $testProject = Join-Path $root "YMM4SandSim.Tests\YMM4SandSim.Tests.csproj"
+    Invoke-CommandChecked "Run xUnit tests" {
+        & $dotnet test $testProject -c Release -p:Platform=x64 -p:SkipPluginDeploy=true
+    }
+}
+
+function Invoke-Format {
+    Invoke-DotnetFormat -VerifyNoChanges:$Verify
+}
+
+function Invoke-Lint {
+    Invoke-DotnetFormat "style" -VerifyNoChanges
+    Invoke-DotnetFormat "analyzers" -VerifyNoChanges
+    $dotnet = Get-RequiredFileProperty "DotnetPath"
+    Invoke-CommandChecked "Build with warnings treated as errors" {
+        & $dotnet build (Join-Path $root "YMM4SandSim\YMM4SandSim.csproj") `
+            -c Release -p:Platform=x64 -p:SkipPluginDeploy=true -p:TreatWarningsAsErrors=true
+    }
+}
+
+function Remove-BuildOutputs {
+    $outputPaths = @(
+        "artifacts",
+        "YMM4SandSim\bin",
+        "YMM4SandSim\obj",
+        "YMM4SandSim.Tests\bin",
+        "YMM4SandSim.Tests\obj",
+        "YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator\bin",
+        "YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator\obj"
+    )
+
+    $rootPrefix = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'
+    foreach ($relativePath in $outputPaths) {
+        $path = [IO.Path]::GetFullPath((Join-Path $root $relativePath))
+        if (-not $path.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean a path outside the repository: $path"
+        }
+        if (Test-Path -LiteralPath $path) {
+            Write-Host "Removing $relativePath"
+            Remove-Item -LiteralPath $path -Recurse -Force
+        }
+    }
+
+    Get-ChildItem -LiteralPath (Join-Path $root "YMM4SandSim\Shaders") -Filter "*.cso" -File |
+        ForEach-Object {
+            Write-Host "Removing YMM4SandSim\Shaders\$($_.Name)"
+            Remove-Item -LiteralPath $_.FullName -Force
+        }
 }
 
 function New-ReleasePackage {
@@ -215,34 +243,27 @@ switch ($Task) {
         Invoke-PluginBuild -Deploy
     }
     "test" {
-        $python = Get-RequiredFileProperty "PythonPath"
-        Invoke-CommandChecked "Run static contract tests" {
-            & $python (Join-Path $root "YMM4SandSim.Tests\StaticContractTests.py")
-        }
-
-        $dotnet = Get-RequiredFileProperty "DotnetPath"
-        $testProject = Join-Path $root "YMM4SandSim.Tests\YMM4SandSim.Tests.csproj"
-        Invoke-CommandChecked "Run xUnit tests" {
-            & $dotnet test $testProject -c Release -p:Platform=x64 -p:SkipPluginDeploy=true
-        }
+        Invoke-Tests
+    }
+    "fmt" {
+        Invoke-Format
     }
     "format" {
-        Invoke-DotnetFormat "whitespace"
+        Invoke-Format
     }
     "lint" {
-        Invoke-DotnetFormat "style"
-        Invoke-DotnetFormat "analyzers"
-        $dotnet = Get-RequiredFileProperty "DotnetPath"
-        Invoke-CommandChecked "Build with warnings treated as errors" {
-            & $dotnet build (Join-Path $root "YMM4SandSim\YMM4SandSim.csproj") `
-                -c Release -p:Platform=x64 -p:SkipPluginDeploy=true -p:TreatWarningsAsErrors=true
-        }
+        Invoke-Lint
+    }
+    "check" {
+        Invoke-Format
+        Invoke-Lint
+        Invoke-Tests
+    }
+    "clean" {
+        Remove-BuildOutputs
     }
     "publish" {
         Invoke-PluginBuild -Deploy
         New-ReleasePackage
-    }
-    "shaders" {
-        Invoke-ShaderBuild
     }
 }

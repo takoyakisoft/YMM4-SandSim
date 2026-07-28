@@ -232,6 +232,18 @@ DebugビルドはInformationが既定で、必要に応じて環境変数`YMM4SA
 
 `Directory.Build.props`を作成済みなら、直接`dotnet`を実行する場合もローカル設定が読み込まれます。
 
+開発用コマンドは次の構成です。`fmt`と`format`は同じ動作で、`check`は整形、リント、テストを順に実行します。`clean`はリポジトリ内のビルド出力、生成済みシェーダー、配布成果物を削除します。
+
+```powershell
+.\scripts\dev.ps1             # build
+.\scripts\dev.ps1 test
+.\scripts\dev.ps1 fmt
+.\scripts\dev.ps1 lint
+.\scripts\dev.ps1 check
+.\scripts\dev.ps1 clean
+.\scripts\dev.ps1 publish
+```
+
 ```powershell
 dotnet build .\YMM4SandSim\YMM4SandSim.csproj -c Release -p:Platform=x64
 ```
@@ -244,7 +256,7 @@ dotnet build .\YMM4SandSim\YMM4SandSim.csproj -c Release -p:Platform=x64
 .\scripts\dev.ps1 test
 ```
 
-整形と自動修正は`.\scripts\dev.ps1 format`、リントと自動修正は`.\scripts\dev.ps1 lint`で実行できます。
+整形と自動修正は`.\scripts\dev.ps1 fmt`（または`format`）、変更を加えないリント検証は`.\scripts\dev.ps1 lint`で実行できます。GitHub ActionsのCIは`fmt -Verify`と`lint`だけを実行します。
 
 主な検証対象は次のとおりです。
 
