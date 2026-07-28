@@ -464,12 +464,13 @@ void TryHorizontal(
 
 float ExplosionPressureAt(uint2 position)
 {
-    if (position.x >= LogicalStateWidth || position.y >= LogicalStateHeight)
-        return 0.0f;
-
-    const float pressure = max(ExplosionPressure.Load(int3(position, 0)), 0.0f);
-    if (IsInsideManualExplosionRegion(position))
-        return pressure * ManualExplosionWaveMask(position);
+    float pressure = 0.0f;
+    if (position.x < LogicalStateWidth && position.y < LogicalStateHeight)
+    {
+        pressure = max(ExplosionPressure.Load(int3(position, 0)), 0.0f);
+        if (IsInsideManualExplosionRegion(position))
+            pressure = max(pressure, ManualExplosionBlastMask(position));
+    }
     return pressure;
 }
 
@@ -500,27 +501,39 @@ void SeedManualExplosionFire(inout Cell cell, bool rigidOccupied, uint2 position
 
     const float2 delta = float2(position) - float2(ManualExplosionCellX, ManualExplosionCellY);
     const float distance = length(delta);
-    const float coreRadius = clamp(ExplosionRadius * 0.20f, 1.25f, 4.0f);
-    if (distance > coreRadius)
-        return;
+    const float cavityRadius = ManualExplosionCavityRadius();
 
-    const uint material = GetMaterial(cell.Meta);
-    if (material != MaterialEmpty)
+    // A controller explosion destroys its inner core instead of filling the
+    // center with orange fire. This is deliberately a one-shot operation:
+    // ManualExplosionEnabled is true only on the trigger iteration.
+    if (distance <= cavityRadius)
     {
-        // The controller must create at least one heat source even when its core
-        // is completely filled. Ignite only the exact flammable center cell;
-        // all subsequent spread still goes through ReactPair/ignition chemistry.
-        if (distance < 0.5f && !IsHeat(material) &&
-            IgnitionProbability(MaterialFire, material) > 0.0f)
-        {
-            SetMaterial(cell, MaterialFire);
-        }
+        cell = EmptyCell();
         return;
     }
 
-    const float core = saturate(1.0f - distance / max(coreRadius, 0.001f));
-    const float probability = saturate((0.20f + core * 0.65f) * ExplosionStrength);
-    if (ChanceUnscaled(randomCell, salt, probability))
+    const uint material = GetMaterial(cell.Meta);
+    const float fireShellRadius = cavityRadius + max(ExplosionRadius * 0.05f, 1.5f);
+    if (distance > fireShellRadius)
+        return;
+
+    // Fire lives on the cavity wall. Empty cells receive visible flame and
+    // flammable material ignites here; later spread stays normal CA chemistry.
+    if (material != MaterialEmpty &&
+        (IsHeat(material) || IgnitionProbability(MaterialFire, material) <= 0.0f))
+        return;
+
+    const float shell = saturate(
+        1.0f - (distance - cavityRadius) / max(fireShellRadius - cavityRadius, 0.001f));
+    const float probability = saturate((0.45f + shell * 0.50f) * ExplosionStrength);
+    if (material == MaterialEmpty)
+    {
+        if (ChanceUnscaled(randomCell, salt, probability))
+            SetMaterial(cell, MaterialFire);
+        return;
+    }
+
+    if (ChanceUnscaled(randomCell, salt + 1u, probability))
         SetMaterial(cell, MaterialFire);
 }
 

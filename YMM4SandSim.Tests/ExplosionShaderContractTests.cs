@@ -5,13 +5,13 @@ namespace YMM4SandSim.Tests;
 public sealed class ExplosionShaderContractTests
 {
     [Fact]
-    public void ManualExplosionSeedsCenterAndPropagatesToConfiguredRadius()
+    public void MaterialExplosionsUsePressureFieldWithoutControllerSeed()
     {
         var source = ReadShader("SandExplosionUpdate.hlsl");
 
         Assert.DoesNotContain("float ManualExplosionSeed(", source);
-        Assert.Contains("id.x == ManualExplosionCellX", source);
-        Assert.Contains("id.y == ManualExplosionCellY", source);
+        Assert.DoesNotContain("manualExplosion", source);
+        Assert.Contains("eventSeed = explosion ? 1.0f : 0.0f", source);
         Assert.Contains("neighbour - ExplosionFalloff", source);
         Assert.Contains("PressureAt(center) * min(ExplosionDecay, 0.32f)", source);
     }
@@ -25,10 +25,13 @@ public sealed class ExplosionShaderContractTests
 
         Assert.Contains("ManualExplosionWaveStep", behavior);
         Assert.Contains("abs(distance - waveRadius)", behavior);
+        Assert.Contains("ManualExplosionBlastMask", behavior);
+        Assert.Contains("propagationStride", behavior);
+        Assert.Contains("trailWidth", behavior);
         Assert.Contains("IsInsideManualExplosionRegion(position)", step);
-        Assert.Contains("pressure * ManualExplosionWaveMask(position)", step);
-        Assert.Contains("visiblePressure *= radialFront", seed);
-        Assert.Contains("explosionFront = radialFront * saturate(pressure * 2.5f)", seed);
+        Assert.Contains("pressure = max(pressure, ManualExplosionBlastMask(position))", step);
+        Assert.Contains("visiblePressure = max(pressure * radialFront, radialFront * 0.35f)", seed);
+        Assert.Contains("explosionFront = radialFront", seed);
     }
 
     [Fact]
@@ -37,24 +40,27 @@ public sealed class ExplosionShaderContractTests
         var source = ReadShader("SandRigidIntegrate.hlsl");
 
         Assert.Contains("IsInsideManualExplosionRegion(cell)", source);
-        Assert.Contains("ManualExplosionWaveMask(cell)", source);
+        Assert.Contains("ManualExplosionBlastMask(cell)", source);
+        Assert.Contains("log2(max(ExplosionStrength, 1.0f))", source);
+        Assert.Contains("96.0f / max((float)ParticleSize, 1.0f)", source);
         Assert.Contains("return delta / distance * impulseMagnitude", source);
         Assert.Contains("rsqrt(max(rigidDensity, 0.50f))", source);
         Assert.Contains("pressureGradient / gradientMagnitude", source);
     }
 
     [Fact]
-    public void ControllerExplosionAlwaysCreatesAHeatSourceAtFlammableCenter()
+    public void ControllerExplosionCreatesCavityAndFireShell()
     {
         var step = ReadShader("SandStep.hlsl");
         var rigid = ReadShader("SandRigidReact.hlsl");
 
         Assert.Contains("void SeedManualExplosionFire(", step);
-        Assert.Contains("distance < 0.5f", step);
-        Assert.Contains("IgnitionProbability(MaterialFire, material) > 0.0f", step);
+        Assert.Contains("ManualExplosionCavityRadius()", step);
+        Assert.Contains("cell = EmptyCell()", step);
+        Assert.Contains("IgnitionProbability(MaterialFire, material) <= 0.0f", step);
         Assert.Contains("SetMaterial(cell, MaterialFire)", step);
-        Assert.Contains("target.x == ManualExplosionCellX", rigid);
-        Assert.Contains("target.y == ManualExplosionCellY", rigid);
+        Assert.Contains("distance <= cavityRadius", rigid);
+        Assert.Contains("ClearRigid(id)", rigid);
         Assert.Contains("ConvertRigidToCell(id, target, MaterialFire)", rigid);
         Assert.DoesNotContain("void IgniteFromBlast(", step);
     }

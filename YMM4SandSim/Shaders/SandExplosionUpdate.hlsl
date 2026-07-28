@@ -140,9 +140,10 @@ void main(
 
     const float propagated = max(0.0f, neighbour - ExplosionFalloff) * TransmissionAt(center);
     const float retained = PressureAt(center) * min(ExplosionDecay, 0.32f);
-    const bool manualExplosion = ManualExplosionEnabled != 0u &&
-        id.x == ManualExplosionCellX && id.y == ManualExplosionCellY;
-    const float eventSeed = (explosion || manualExplosion) ? 1.0f : 0.0f;
+    // Controller explosions use the analytic radial front in SandBehavior.
+    // Keep this pressure texture for one-shot material explosions only; seeding
+    // the controller here would reintroduce a slow CA-looking wave behind it.
+    const float eventSeed = explosion ? 1.0f : 0.0f;
     const float pressure = max(eventSeed, max(propagated, retained));
     NextPressure[id] = pressure < 0.001f ? 0.0f : pressure;
 }

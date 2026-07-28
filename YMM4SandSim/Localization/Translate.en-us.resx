@@ -108,7 +108,7 @@
 <data name="ExplosionStrength_Name" xml:space="preserve"><value>Strength</value></data>
 <data name="ExplosionStrength_Desc" xml:space="preserve"><value>Sets explosion pressure strength. 100% is standard; 0% disables pressure waves</value></data>
 <data name="ExplosionRadius_Name" xml:space="preserve"><value>Radius</value></data>
-<data name="ExplosionRadius_Desc" xml:space="preserve"><value>Sets the explosion effect radius in cells. The shockwave expands radially from the blast center and propagates toward the configured radius while respecting material shielding and attenuation.</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>Sets the explosion effect radius in pixels. The on-screen radius is independent of particle size and the shockwave expands radially from the blast center.</value></data>
 <data name="LightingStrength_Name" xml:space="preserve"><value>Strength</value></data>
 <data name="LightingStrength_Desc" xml:space="preserve"><value>Sets light strength from fire, embers, lava, sea lanterns and explosions. 100% is standard; 0% disables lighting.</value></data>
 <data name="LightingRadius_Name" xml:space="preserve"><value>Radius</value></data>
@@ -145,7 +145,7 @@
 <data name="Material_Water" xml:space="preserve"><value>Water (#0078f8)</value></data>
 <data name="Material_Salt" xml:space="preserve"><value>Salt (#f8f8f8)</value></data>
 <data name="Material_Wood" xml:space="preserve"><value>Wood (#881400)</value></data>
-<data name="Material_Fire" xml:space="preserve"><value>Fire (#e45c10)</value></data>
+<data name="Material_Fire" xml:space="preserve"><value>Fire (#f82004)</value></data>
 <data name="Material_Smoke" xml:space="preserve"><value>Smoke (#787878)</value></data>
 <data name="Material_Ember" xml:space="preserve"><value>Ember (reaction/support material)</value></data>
 <data name="Material_Steam" xml:space="preserve"><value>Steam (#a4e4fc)</value></data>

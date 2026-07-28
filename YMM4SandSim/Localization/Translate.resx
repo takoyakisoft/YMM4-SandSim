@@ -108,7 +108,7 @@
 <data name="ExplosionStrength_Name" xml:space="preserve"><value>強さ</value></data>
 <data name="ExplosionStrength_Desc" xml:space="preserve"><value>爆発による圧力波の強さを指定します。100%が標準です。0%で圧力波、衝撃、爆発光を無効化します。</value></data>
 <data name="ExplosionRadius_Name" xml:space="preserve"><value>半径</value></data>
-<data name="ExplosionRadius_Desc" xml:space="preserve"><value>爆発の影響半径をセル単位で指定します。衝撃波は爆心から円形に広がり、指定半径まで素材による遮蔽と減衰を受けながら伝播します。</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>爆発の影響半径をpx単位で指定します。粒のサイズに関係なく画面上の大きさを指定でき、衝撃波は爆心から円形に広がります。</value></data>
 <data name="LightingStrength_Name" xml:space="preserve"><value>強さ</value></data>
 <data name="LightingStrength_Desc" xml:space="preserve"><value>火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%でライトを無効化します。</value></data>
 <data name="LightingRadius_Name" xml:space="preserve"><value>半径</value></data>
@@ -145,7 +145,7 @@
 <data name="Material_Water" xml:space="preserve"><value>水（#0078f8）</value></data>
 <data name="Material_Salt" xml:space="preserve"><value>塩（#f8f8f8）</value></data>
 <data name="Material_Wood" xml:space="preserve"><value>木（#881400）</value></data>
-<data name="Material_Fire" xml:space="preserve"><value>火（#e45c10）</value></data>
+<data name="Material_Fire" xml:space="preserve"><value>火（#f82004）</value></data>
 <data name="Material_Smoke" xml:space="preserve"><value>煙（#787878）</value></data>
 <data name="Material_Ember" xml:space="preserve"><value>残り火（反応・追加素材）</value></data>
 <data name="Material_Steam" xml:space="preserve"><value>水蒸気（#a4e4fc）</value></data>

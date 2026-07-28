@@ -15,7 +15,7 @@ internal static class SandSimulationSettings
     public const int MaximumIterationsPerFrame = 32;
     public const int MaximumWarmupIterations = 256;
     public const int MaximumSolidSolverIterations = 8;
-    public const int MaximumExplosionRadius = 24;
+    public const double ExplosionRadiusSliderMaximum = 1000.0;
     public const int MaximumLightingRadius = 32;
     public const double PositionSliderMinimum = -500.0;
     public const double PositionSliderMaximum = 500.0;
@@ -24,7 +24,6 @@ internal static class SandSimulationSettings
     public const double PositiveAnimationMinimum = 0.0;
     public const double SignedAnimationMinimum = -100_000.0;
     public const double AnimationMaximum = 100_000.0;
-    public const float MaximumNormalizedPercentMultiplier = 1_000.0f;
     public const uint DefaultSeed = 0x6D2B79F5u;
 
     public static int GetSimulationStateBytesPerCell(

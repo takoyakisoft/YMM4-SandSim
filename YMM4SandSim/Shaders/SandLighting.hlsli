@@ -8,7 +8,7 @@ static const float ShockwaveLightTransmission = 30.0f / 31.0f;
 
 float3 MaterialEmission(uint material)
 {
-    if (material == MaterialFire) return float3(1.00f, 0.28f, 0.04f);
+    if (material == MaterialFire) return float3(1.00f, 0.12f, 0.015f);
     if (material == MaterialEmber) return float3(0.70f, 0.252f, 0.042f);
     if (material == MaterialLava) return float3(1.00f, 0.18f, 0.02f);
     if (material == MaterialSeaLantern) return float3(0.289f, 0.8075f, 0.85f);

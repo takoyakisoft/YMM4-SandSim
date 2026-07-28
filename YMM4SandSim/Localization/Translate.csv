@@ -48,7 +48,7 @@ ExplosionFrame_Desc,desc,エフェクトの開始から何フレーム目に爆�
 ExplosionStrength_Name,name,強さ,Strength
 ExplosionStrength_Desc,desc,爆発による圧力波の強さを指定します。100%が標準です。0%で圧力波、衝撃、爆発光を無効化します。,Sets explosion pressure strength. 100% is standard; 0% disables pressure waves, impact and explosion light.
 ExplosionRadius_Name,name,半径,Radius
-ExplosionRadius_Desc,desc,爆発の影響半径をセル単位で指定します。衝撃波は爆心から円形に広がり、指定半径まで素材による遮蔽と減衰を受けながら伝播します。,Sets the explosion effect radius in cells. The shockwave expands radially from the blast center and propagates toward the configured radius while respecting material shielding and attenuation.
+ExplosionRadius_Desc,desc,爆発の影響半径をpx単位で指定します。粒のサイズに関係なく画面上の大きさを指定でき、衝撃波は爆心から円形に広がります。,Sets the explosion effect radius in pixels. The on-screen radius is independent of particle size and the shockwave expands radially from the blast center.
 LightingStrength_Name,name,強さ,Strength
 LightingStrength_Desc,desc,火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%でライトを無効化します。,"Sets light strength from fire, embers, lava, sea lanterns and explosions. 100% is standard; 0% disables lighting."
 LightingRadius_Name,name,半径,Radius
@@ -85,7 +85,7 @@ Material_Sand,enum,砂（#f8d878）,Sand (#f8d878)
 Material_Water,enum,水（#0078f8）,Water (#0078f8)
 Material_Salt,enum,塩（#f8f8f8）,Salt (#f8f8f8)
 Material_Wood,enum,木（#881400）,Wood (#881400)
-Material_Fire,enum,火（#e45c10）,Fire (#e45c10)
+Material_Fire,enum,火（#f82004）,Fire (#f82004)
 Material_Smoke,enum,煙（#787878）,Smoke (#787878)
 Material_Ember,enum,残り火（反応・追加素材）,Ember (reaction/support material)
 Material_Steam,enum,水蒸気（#a4e4fc）,Steam (#a4e4fc)

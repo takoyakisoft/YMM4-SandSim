@@ -24,8 +24,8 @@ float2 ExplosionImpulseAt(uint2 cell, float rigidDensity)
 
     if (IsInsideManualExplosionRegion(cell))
     {
-        const float frontMask = ManualExplosionWaveMask(cell);
-        if (frontMask <= 0.0f || centerPressure <= 0.0f)
+        const float frontMask = ManualExplosionBlastMask(cell);
+        if (frontMask <= 0.0f)
             return 0.0f;
 
         const float2 delta = float2(cell) - float2(ManualExplosionCellX, ManualExplosionCellY);
@@ -33,14 +33,13 @@ float2 ExplosionImpulseAt(uint2 cell, float rigidDensity)
         if (distance < 0.0001f)
             return 0.0f;
 
-        // The pressure texture still supplies shielding/attenuation, but the
-        // controller front direction comes from the blast center instead of the
-        // square 8-neighbour arrival gradient. This makes the XPBD kick radial.
-        const float radius = max(ExplosionRadius, 1.0f);
-        const float expectedPressure = max(1.0f - distance / radius, 1.0f / radius);
-        const float transmissionScale = saturate(centerPressure / max(expectedPressure, 0.001f));
-        const float waveStrength = frontMask * transmissionScale;
-        const float impulseMagnitude = min(waveStrength * ExplosionStrength * 0.85f * densityScale, 0.90f);
+        // Controller blasts are an impulse event, not an acoustic CA solver.
+        // Use the Euclidean front directly so large radii still complete in a
+        // few simulation iterations. Material explosions continue to use the
+        // pressure texture and its shielding below.
+        const float strengthScale = sqrt(max(ExplosionStrength, 0.0f));
+        const float impulseMagnitude =
+            frontMask * (0.55f + strengthScale * 0.65f) * densityScale;
         return delta / distance * impulseMagnitude;
     }
 
@@ -116,7 +115,15 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     // cannot skip completely over a one-cell-thick obstacle due to integration
     // velocity alone. XPBD projection can still move points, but this removes
     // the dominant tunnelling source without a swept-contact buffer.
-    const float maximumRigidStep = 0.95f;
+    float maximumRigidStep = 0.95f;
+    if (length(explosionImpulse) > 0.0001f && IsInsideManualExplosionRegion(currentCell))
+    {
+        // Let stronger explosions produce visibly more travel without an
+        // arbitrary 4-cell ceiling. Growth is logarithmic to keep the final-cell
+        // occupancy collision scheme numerically usable at extreme UI values.
+        maximumRigidStep = 0.95f +
+            0.85f * log2(max(ExplosionStrength, 1.0f));
+    }
     const float speed = length(velocity);
     if (speed > maximumRigidStep)
         velocity *= maximumRigidStep / speed;
@@ -162,10 +169,37 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     {
         const float probability = saturate((impulseMagnitude / fractureThreshold - 1.0f) * 0.70f);
         const uint salt = StepIndex * 0x9e3779b9u;
-        if (HashUnit(id, salt + 0u) < probability) nextLambda.x = BrokenRigidBondMarker;
-        if (HashUnit(id, salt + 1u) < probability) nextLambda.y = BrokenRigidBondMarker;
-        if (HashUnit(id, salt + 2u) < probability) nextLambda.z = BrokenRigidBondMarker;
-        if (HashUnit(id, salt + 3u) < probability) nextLambda.w = BrokenRigidBondMarker;
+        if (IsInsideManualExplosionRegion(currentCell))
+        {
+            // Manual blasts should throw recognizable chunks, not atomize every
+            // lattice cell. FallingSand-style bodies are connected regions rather
+            // than per-cell bodies; use a much coarser fracture grid here until
+            // component-level rigid proxies are introduced.
+            const uint chunkSpan = max(
+                8u, (uint)ceil(96.0f / max((float)ParticleSize, 1.0f)));
+            const bool eastBoundary = ((id.x + 1u) % chunkSpan) == 0u;
+            const bool southBoundary = ((id.y + 1u) % chunkSpan) == 0u;
+            const bool westBoundary = (id.x % chunkSpan) == 0u;
+            const float chunkProbability = probability * 0.72f;
+
+            if (eastBoundary && HashUnit(id, salt + 0u) < chunkProbability)
+                nextLambda.x = BrokenRigidBondMarker;
+            if (southBoundary && HashUnit(id, salt + 1u) < chunkProbability)
+                nextLambda.y = BrokenRigidBondMarker;
+            if ((eastBoundary || southBoundary) &&
+                HashUnit(id, salt + 2u) < chunkProbability)
+                nextLambda.z = BrokenRigidBondMarker;
+            if ((westBoundary || southBoundary) &&
+                HashUnit(id, salt + 3u) < chunkProbability)
+                nextLambda.w = BrokenRigidBondMarker;
+        }
+        else
+        {
+            if (HashUnit(id, salt + 0u) < probability) nextLambda.x = BrokenRigidBondMarker;
+            if (HashUnit(id, salt + 1u) < probability) nextLambda.y = BrokenRigidBondMarker;
+            if (HashUnit(id, salt + 2u) < probability) nextLambda.z = BrokenRigidBondMarker;
+            if (HashUnit(id, salt + 3u) < probability) nextLambda.w = BrokenRigidBondMarker;
+        }
     }
     RigidLambda[id] = nextLambda;
 }

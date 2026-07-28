@@ -70,9 +70,13 @@ float4 main(float4 position : SV_Position) : SV_Target
     }
 
     float4 straightColor;
-    if (ColorMode == 1u)
+    const bool transientHeat =
+        material == MaterialFire || material == MaterialEmber ||
+        material == MaterialSmoke || material == MaterialSteam;
+    if (ColorMode == 1u && !transientHeat)
     {
-        // PreserveInput is literal for both cellular and XPBD-owned solids.
+        // Preserve the source artwork for persistent matter. Reaction products
+        // use their physical palette color so fire cannot look like orange sand.
         straightColor = UnpackColor(color);
     }
     else

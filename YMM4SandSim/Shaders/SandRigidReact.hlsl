@@ -146,14 +146,28 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (RigidOccupancy.Load(int3(target, 0)) != OwnerFor(id))
         return;
 
-    if (ManualExplosionEnabled != 0u &&
-        target.x == ManualExplosionCellX && target.y == ManualExplosionCellY &&
-        IgnitionProbability(MaterialFire, material) > 0.0f)
+    if (ManualExplosionEnabled != 0u)
     {
-        // Match the CA hot-core rule for XPBD-owned flammable material. Only the
-        // exact center becomes fire; propagation remains normal CA chemistry.
-        ConvertRigidToCell(id, target, MaterialFire);
-        return;
+        const float distance = ManualExplosionDistance(target);
+        const float cavityRadius = ManualExplosionCavityRadius();
+        if (distance <= cavityRadius)
+        {
+            // Destroy XPBD particles in the inner blast core so an opaque object
+            // gets a real cavity rather than an orange cell at its center.
+            CellularColor[target] = 0u;
+            CellularMeta[target] = 0u;
+            ClearRigid(id);
+            return;
+        }
+
+        const float fireShellRadius =
+            cavityRadius + max(ExplosionRadius * 0.05f, 1.5f);
+        if (distance <= fireShellRadius &&
+            IgnitionProbability(MaterialFire, material) > 0.0f)
+        {
+            ConvertRigidToCell(id, target, MaterialFire);
+            return;
+        }
     }
 
     uint heat;

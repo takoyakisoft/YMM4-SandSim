@@ -183,12 +183,46 @@ float ManualExplosionWaveMask(uint2 cell)
         return 0.0f;
 
     const float waveRadius = (float)ManualExplosionWaveStep;
-    if (waveRadius >= max(ExplosionRadius, 1.0f))
+    if (waveRadius > max(ExplosionRadius, 1.0f))
         return 0.0f;
 
     const float distance = ManualExplosionDistance(cell);
     const float halfWidth = 0.75f;
     return saturate(1.0f - abs(distance - waveRadius) / halfWidth);
+}
+
+float ManualExplosionBlastMask(uint2 cell)
+{
+    if (!HasManualExplosionWave())
+        return 0.0f;
+
+    const float waveRadius = (float)ManualExplosionWaveStep;
+    const float distance = ManualExplosionDistance(cell);
+    if (waveRadius > max(ExplosionRadius, 1.0f) || distance > waveRadius + 0.75f)
+        return 0.0f;
+
+    // Keep the visible front thin, but let high-strength explosions leave a
+    // wider pressure wake. Rigid/CA material is therefore pushed for several
+    // safe substeps instead of strength disappearing into a one-step velocity cap.
+    const float strengthScale = sqrt(max(ExplosionStrength, 0.0f));
+    // The host advances the controller front in about six iterations. Make the
+    // wake at least one radial stride wide so no cells are skipped when a large
+    // radius jumps several cells between simulation iterations.
+    const float propagationStride = max(ceil(max(ExplosionRadius, 1.0f) / 6.0f), 1.0f);
+    const float trailWidth = propagationStride + 1.0f + strengthScale;
+    const float behindFront = max(waveRadius - distance, 0.0f);
+    const float trail = saturate(1.0f - behindFront / trailWidth);
+    return max(ManualExplosionWaveMask(cell), trail);
+}
+
+float ManualExplosionCavityRadius()
+{
+    const float radius = max(ExplosionRadius, 1.0f);
+    const float intensityScale = max(
+        sqrt(sqrt(max(ExplosionStrength, 0.01f))), 0.60f);
+    // Radius is the semantic boundary of the effect. Strength may carve more of
+    // that radius, but there is no unrelated fixed cell-count ceiling.
+    return min(radius, max(radius * 0.18f * intensityScale, 1.5f));
 }
 
 // Fraction of a pressure wave that enters a cell occupied by this material.

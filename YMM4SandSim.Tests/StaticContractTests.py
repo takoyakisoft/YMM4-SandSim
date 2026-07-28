@@ -248,7 +248,7 @@ def test_initialize_and_step() -> None:
           "Margolus boundary cells must advance lifetime even when they are outside a shifted 2x2 block")
     check(step.count("AdvanceStandaloneCell(") >= 11,
           "all 1D and shifted-phase boundary paths must use standalone lifetime advancement")
-    check("if (ColorMode == 1u)" in render, "PreserveInput mode missing")
+    check("if (ColorMode == 1u && !transientHeat)" in render, "PreserveInput mode missing")
     check("straightColor = UnpackColor(color);" in render, "PreserveInput must load original color")
 
     for name, text in (("initialize", initialize), ("step", step), ("render", render)):
@@ -535,17 +535,23 @@ def test_explosion_and_lighting_contract() -> None:
           "_item.ExplosionX.AddToEachValues(args.Delta.X)" in processor and
           "_item.ExplosionY.AddToEachValues(args.Delta.Y)" in processor,
           "YMM4 preview controller must drag the item-local manual explosion center")
-    check("parameters.ExplosionRadius * parameters.ParticleSize" in processor and
-          "_item.ExplosionRadius.AddToEachValues(args.Delta.X / parameters.ParticleSize)" in processor and
+    check("var radiusPixels = (float)parameters.ExplosionRadius" in processor and
+          "_item.ExplosionRadius.AddToEachValues(args.Delta.X)" in processor and
           "VideoControllerPointConnection.Line" in processor,
-          "YMM4 preview controller must expose a connected radius handle in simulation-cell units")
+          "YMM4 preview controller must expose a connected radius handle in pixel units")
+    check("(parameters.ExplosionRadius + parameters.ParticleSize - 1) / parameters.ParticleSize" in processor,
+          "pixel explosion radius must convert to cell radius only at the GPU boundary")
     check("SandExplosionTriggerPolicy.ShouldTrigger(" in processor,
           "manual explosion trigger timing must use the deterministic trigger policy")
     check("gpuParameters with { ManualExplosion = false }" in processor and
           processor.count("Step(in warmupGpuParameters, parameters.WarmupIterations)") == 3,
           "warmup must never seed the manual explosion before the displayed frame step")
-    check("ManualExplosionEnabled" in core and "manualExplosion" in explosion,
-          "manual explosion seed must reach the GPU pressure shader")
+    check("ManualExplosionEnabled" in core and "manualExplosion" not in explosion and
+          "eventSeed = explosion ? 1.0f : 0.0f" in explosion,
+          "controller explosions must not seed the slow CA pressure field")
+    check("ManualExplosionPropagationIterations = 6u" in gpu and
+          "GetManualExplosionWaveAdvance" in gpu,
+          "controller shockwave must complete in a small radius-independent number of simulation iterations")
     check("ExplosionStrength == other.ExplosionStrength" in processor and "ExplosionRadius == other.ExplosionRadius" in processor,
           "explosion physics changes must reset/rebuild timeline state")
     check("_parameters.LightingStrength != parameters.LightingStrength" in processor,
@@ -845,7 +851,6 @@ def test_parameter_range_contract() -> None:
         "PositiveAnimationMinimum = 0.0": "non-negative animation minimum",
         "SignedAnimationMinimum = -100_000.0": "signed animation minimum",
         "AnimationMaximum = 100_000.0": "shared animation maximum",
-        "MaximumNormalizedPercentMultiplier = 1_000.0f": "normalized percent multiplier maximum",
     }
     for token, label in expected_constants.items():
         check(token in settings, f"missing VTuberKit-compatible {label}")
@@ -876,8 +881,11 @@ def test_parameter_range_contract() -> None:
     check(effect.count("25, SandSimulationSettings.PercentMultiplierSliderMaximum") == 2,
           "stiffness and break strength must retain their safe minimum and 400 percent initial maximum")
     processor = (PRODUCT / "SandSimulationEffectProcessor.cs").read_text(encoding="utf-8")
-    check(processor.count("SandSimulationSettings.MaximumNormalizedPercentMultiplier") == 6,
-          "all six percentage multipliers must normalize the 100000 percent maximum for GPU use")
+    check(processor.count("ClampFiniteAtLeast(") >= 6 and
+          "MaximumNormalizedPercentMultiplier" not in processor,
+          "percentage multipliers must keep their semantic minimum without a hidden runtime upper clamp")
+    check("ExplosionRadius: RoundAtLeast(" in processor and "MaximumExplosionRadius" not in processor,
+          "explosion radius must preserve typed pixel values without a hidden runtime upper clamp")
 
 def test_ymm4_ui_terminology_contract() -> None:
     effect = (PRODUCT / "SandSimulationEffect.cs").read_text(encoding="utf-8")
@@ -925,9 +933,9 @@ def test_ymm4_ui_terminology_contract() -> None:
           "alpha extraction labels must use YMM4's user-facing opacity terminology")
     check("Order =" not in effect,
           "effect parameter UI order must follow source declaration order without Display.Order")
-    check(re.search(r"public bool IsScreenSize[\s\S]*?private bool _isScreenSize = true;", effect) is not None and
+    check(re.search(r"public bool IsScreenSize[\s\S]*?private bool _isScreenSize;", effect) is not None and
           "nameof(Translate.ScreenSize_Name)" in effect and "[ToggleSlider]" in effect,
-          "screen-size rendering must be a localized toggle that defaults on")
+          "screen-size rendering must be a localized toggle that defaults off")
     processor = (PRODUCT / "SandSimulationEffectProcessor.cs").read_text(encoding="utf-8")
     check("effectDescription.ScreenSize.Width" in processor and
           "effectDescription.ScreenSize.Height" in processor and

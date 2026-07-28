@@ -28,6 +28,7 @@ internal sealed class SandSimulationGpu : IDisposable
     private static readonly ID3D11ShaderResourceView[] NullShaderResourceViews = new ID3D11ShaderResourceView[8];
     private static readonly ID3D11UnorderedAccessView[] NullUnorderedAccessViews = new ID3D11UnorderedAccessView[8];
     private static readonly ID3D11Buffer[] NullConstantBuffers = new ID3D11Buffer[1];
+    private const uint ManualExplosionPropagationIterations = 6u;
     private static readonly D3DFeatureLevel[] ContextStateFeatureLevels =
     [
         D3DFeatureLevel.Level_11_1,
@@ -504,11 +505,17 @@ internal sealed class SandSimulationGpu : IDisposable
 
                 if (manualExplosionWaveStep != uint.MaxValue)
                 {
-                    _manualExplosionWaveNextStep = manualExplosionWaveStep + 1u;
-                    if ((float)manualExplosionWaveStep < Math.Max(constants.ExplosionRadius, 1.0f))
+                    var visibleRadius = Math.Max((uint)MathF.Ceiling(constants.ExplosionRadius), 1u);
+                    _manualExplosionWaveRenderedStep = Math.Min(manualExplosionWaveStep, visibleRadius);
+                    _manualExplosionWaveVisible = true;
+                    if (manualExplosionWaveStep >= visibleRadius)
                     {
-                        _manualExplosionWaveRenderedStep = manualExplosionWaveStep;
-                        _manualExplosionWaveVisible = true;
+                        _manualExplosionWaveActive = false;
+                    }
+                    else
+                    {
+                        var waveAdvance = GetManualExplosionWaveAdvance(constants.ExplosionRadius);
+                        _manualExplosionWaveNextStep = Math.Min(manualExplosionWaveStep + waveAdvance, visibleRadius);
                     }
                 }
             }
@@ -1421,12 +1428,11 @@ internal sealed class SandSimulationGpu : IDisposable
         if (!_manualExplosionWaveActive)
             return;
 
-        // Keep suppressing the square residual pressure for four iterations after
-        // the visible radial front reaches the configured radius. The pressure
-        // field has decayed below its 0.001 cutoff by then at the supported radii.
+        // Controller explosions are a short impulse event. Advance the Euclidean
+        // front by a radius-dependent amount so even large UI radii complete in
+        // roughly the same small number of simulation iterations.
         var visibleRadius = Math.Max((uint)MathF.Ceiling(constants.ExplosionRadius), 1u);
-        var activeStepLimit = visibleRadius + 4u;
-        if (_manualExplosionWaveNextStep >= activeStepLimit)
+        if (_manualExplosionWaveNextStep > visibleRadius)
         {
             _manualExplosionWaveActive = false;
             return;
@@ -1435,6 +1441,14 @@ internal sealed class SandSimulationGpu : IDisposable
         constants.ManualExplosionCellX = _manualExplosionCellX;
         constants.ManualExplosionCellY = _manualExplosionCellY;
         constants.ManualExplosionWaveStep = _manualExplosionWaveNextStep;
+    }
+
+    private static uint GetManualExplosionWaveAdvance(float explosionRadius)
+    {
+        var visibleRadius = Math.Max((uint)MathF.Ceiling(explosionRadius), 1u);
+        return Math.Max(
+            (visibleRadius + ManualExplosionPropagationIterations - 1u) / ManualExplosionPropagationIterations,
+            1u);
     }
 
     private void PrepareManualExplosionWaveForRender(ref GpuConstants constants)

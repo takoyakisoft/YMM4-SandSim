@@ -80,8 +80,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         if (IsInsideManualExplosionRegion(id))
         {
             const float radialFront = ManualExplosionWaveMask(id);
-            visiblePressure *= radialFront;
-            explosionFront = radialFront * saturate(pressure * 2.5f);
+            visiblePressure = max(pressure * radialFront, radialFront * 0.35f);
+            explosionFront = radialFront;
         }
         else
         {
