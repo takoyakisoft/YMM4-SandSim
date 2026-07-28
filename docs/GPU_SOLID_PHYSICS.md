@@ -126,7 +126,7 @@ Emitterのrestampでは、既存のrigid source particleが持つ破断履歴を
 爆発には2つの経路があります。
 
 - **火薬爆発**：火薬のone-shot metadata eventを`SandExplosionUpdate`が消費し、GPU上のscalar pressure fieldを8近傍へ伝播します。壁や素材の`ExplosionPressureTransmission`が圧力を減衰させ、火薬の連鎖、CAの飛散、XPBDへの圧力gradient、発光へ利用します。
-- **制御点爆発**：YMM4の`VideoEffectController`から中心、発火フレーム、px単位の半径を受け取り、火薬pressureとは別の解析的Euclidean frontを約6 simulation iterationで最大半径まで進めます。大半径でもセルを1個ずつ待つ遅い同心円伝播にはしません。
+- **制御点爆発**：YMM4の`VideoEffectController`から中心、発火フレーム、px単位の半径を受け取り、火薬pressureとは別の解析的Euclidean frontを約6出力フレームで最大半径まで進めます。大半径でもセルを1個ずつ待つ遅い同心円伝播にはしません。
 
 制御点の中心はsigned cell座標としてGPUへ渡し、画面端へclampしません。画面外の爆心から半径の一部だけを画面内へ届かせることができます。
 

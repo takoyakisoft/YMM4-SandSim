@@ -29,7 +29,7 @@ internal sealed class SandSimulationGpu : IDisposable
     private static readonly ID3D11ShaderResourceView[] NullShaderResourceViews = new ID3D11ShaderResourceView[8];
     private static readonly ID3D11UnorderedAccessView[] NullUnorderedAccessViews = new ID3D11UnorderedAccessView[8];
     private static readonly ID3D11Buffer[] NullConstantBuffers = new ID3D11Buffer[1];
-    private const uint ManualExplosionPropagationIterations = 6u;
+    private const uint ManualExplosionPropagationFrames = 6u;
     private const int DiagnosticSampleWindow = 120;
     private static readonly D3DFeatureLevel[] ContextStateFeatureLevels =
     [
@@ -482,7 +482,7 @@ internal sealed class SandSimulationGpu : IDisposable
 
                 constants.StepIndex = _globalStep;
                 constants.ManualExplosionEnabled = parameters.ManualExplosion && i == 0 ? 1u : 0u;
-                PrepareManualExplosionWaveForStep(ref constants);
+                PrepareManualExplosionWaveForStep(ref constants, i == 0);
                 uint manualExplosionWaveStep = constants.ManualExplosionWaveStep;
                 if (parameters.ExplosionStrength > 0.0f)
                 {
@@ -1609,23 +1609,24 @@ internal sealed class SandSimulationGpu : IDisposable
 
     private void StartManualExplosionWave(in GpuConstants constants)
     {
+        var visibleRadius = Math.Max((uint)MathF.Ceiling(constants.ExplosionRadius), 1u);
         _manualExplosionWaveActive = true;
         _manualExplosionWaveVisible = false;
-        _manualExplosionWaveNextStep = 0u;
+        _manualExplosionWaveNextStep = Math.Min(GetManualExplosionWaveAdvance(constants.ExplosionRadius), visibleRadius);
         _manualExplosionWaveRenderedStep = 0u;
         _manualExplosionCellX = constants.ManualExplosionCellX;
         _manualExplosionCellY = constants.ManualExplosionCellY;
     }
 
-    private void PrepareManualExplosionWaveForStep(ref GpuConstants constants)
+    private void PrepareManualExplosionWaveForStep(ref GpuConstants constants, bool applyWave)
     {
         constants.ManualExplosionWaveStep = uint.MaxValue;
-        if (!_manualExplosionWaveActive)
+        if (!applyWave || !_manualExplosionWaveActive)
             return;
 
-        // Controller explosions are a short impulse event. Advance the Euclidean
-        // front by a radius-dependent amount so even large UI radii complete in
-        // roughly the same small number of simulation iterations.
+        // Controller explosions are a short frame-timed impulse event. Apply one
+        // Euclidean front per output frame regardless of IterationsPerFrame, so
+        // simulation quality does not change shockwave speed or impulse count.
         var visibleRadius = Math.Max((uint)MathF.Ceiling(constants.ExplosionRadius), 1u);
         if (_manualExplosionWaveNextStep > visibleRadius)
         {
@@ -1642,7 +1643,7 @@ internal sealed class SandSimulationGpu : IDisposable
     {
         var visibleRadius = Math.Max((uint)MathF.Ceiling(explosionRadius), 1u);
         return Math.Max(
-            (visibleRadius + ManualExplosionPropagationIterations - 1u) / ManualExplosionPropagationIterations,
+            (visibleRadius + ManualExplosionPropagationFrames - 1u) / ManualExplosionPropagationFrames,
             1u);
     }
 

@@ -263,12 +263,12 @@ float ManualExplosionBlastMaskAt(float2 position)
         return 0.0f;
 
     // Keep the visible front thin, but let high-strength explosions leave a
-    // wider pressure wake. Rigid/CA material is therefore pushed for several
-    // safe substeps instead of strength disappearing into a one-step velocity cap.
+    // wider pressure wake. Rigid/CA material can therefore receive the blast on
+    // successive frame steps instead of strength disappearing into one velocity cap.
     const float strengthScale = sqrt(max(ExplosionStrength, 0.0f));
-    // The host advances the controller front in about six iterations. Make the
+    // The host advances the controller front in about six output frames. Make the
     // wake at least one radial stride wide so no cells are skipped when a large
-    // radius jumps several cells between simulation iterations.
+    // radius jumps several cells between rendered frames.
     const float propagationStride = max(ceil(max(ExplosionRadius, 1.0f) / 6.0f), 1.0f);
     const float trailWidth = propagationStride + 1.0f + strengthScale;
     const float behindFront = max(waveRadius - distance, 0.0f);

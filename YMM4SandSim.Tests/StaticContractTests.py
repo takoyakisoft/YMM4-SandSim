@@ -579,9 +579,11 @@ def test_explosion_and_lighting_contract() -> None:
     check("ManualExplosionEnabled" in core and "manualExplosion" not in explosion and
           "eventSeed = explosion ? 1.0f : 0.0f" in explosion,
           "controller explosions must not seed the slow CA pressure field")
-    check("ManualExplosionPropagationIterations = 6u" in gpu and
+    check("ManualExplosionPropagationFrames = 6u" in gpu and
+          "PrepareManualExplosionWaveForStep(ref constants, i == 0)" in gpu and
+          "Math.Min(GetManualExplosionWaveAdvance(constants.ExplosionRadius), visibleRadius)" in gpu and
           "GetManualExplosionWaveAdvance" in gpu,
-          "controller shockwave must complete in a small radius-independent number of simulation iterations")
+          "controller shockwave must advance once per output frame independently of simulation iterations")
     check("ExplosionStrength == other.ExplosionStrength" in processor and "ExplosionRadius == other.ExplosionRadius" in processor,
           "explosion physics changes must reset/rebuild timeline state")
     check("_parameters.LightingStrength != parameters.LightingStrength" in processor,
