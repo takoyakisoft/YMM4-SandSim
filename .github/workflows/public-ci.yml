@@ -46,23 +46,13 @@ jobs:
       - name: Setup local build properties
         shell: pwsh
         run: |
-          $kitsRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
-          $fxc = Get-ChildItem -LiteralPath $kitsRoot -Directory |
-            Sort-Object Name -Descending |
-            ForEach-Object { Join-Path $_.FullName "x64\fxc.exe" } |
-            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-            Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($fxc)) {
-            throw "fxc.exe was not found."
-          }
-
           $content = @"
           <Project>
             <PropertyGroup>
               <YMM4DirPath>$env:YMM4_DIR\</YMM4DirPath>
-              <FxcPath>$fxc</FxcPath>
+              <FxcPath>fxc.exe</FxcPath>
               <DotnetPath>$((Get-Command dotnet).Source)</DotnetPath>
-              <PythonPath>$((Get-Command python).Source)</PythonPath>
+              <PythonPath>python.exe</PythonPath>
             </PropertyGroup>
           </Project>
           "@

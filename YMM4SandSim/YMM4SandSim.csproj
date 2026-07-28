@@ -75,8 +75,8 @@
     </HlslShader>
   </ItemDefinitionGroup>
 
-  <Target Name="CompileHLSLShaders" BeforeTargets="BeforeBuild" Inputs="@(HlslShader);@(ShaderInclude)" Outputs="@(HlslShader->'%(ObjectFileOutput)')">
-    <Message Text="Compiling HLSL shaders in parallel with FXC /O3" Importance="high" />
+  <Target Name="CompileHLSLShaders" BeforeTargets="BeforeBuild">
+    <Message Text="Checking incremental HLSL build with FXC /O3" Importance="high" />
     <Error Text="fxc.exe not found at path: $(FxcPath)" Condition="!Exists('$(FxcPath)') AND '$(FxcPath)' != 'fxc.exe'" />
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\scripts\dev.ps1&quot; shaders" />
   </Target>

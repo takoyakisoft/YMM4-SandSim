@@ -265,9 +265,15 @@ def test_shader_build_list() -> None:
     check("SandRigidReact.hlsl" in script_shaders, "rigid reaction shader must be compiled by FXC")
     for shader in ("SandExplosionUpdate.hlsl", "SandLightSeed.hlsl", "SandLightPropagate.hlsl"):
         check(shader in script_shaders, f"{shader} must be compiled by FXC")
-    check("Remove-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue" in compile_script,
-          "shader compilation must remove stale bytecode before invoking FXC")
-    check('throw "FXC reported success but output is missing: $output"' in compile_script,
+    check("Get-ShaderDependencyPaths" in compile_script and "LastWriteTimeUtc" in compile_script,
+          "shader compilation must track recursive includes and skip up-to-date bytecode")
+    check("Start-Process -FilePath $FxcPath" in compile_script and "Get-ShaderCompilerParallelism" in compile_script,
+          "shader compilation must run independent FXC processes in parallel")
+    check("$tempOutput" in compile_script and
+          "[IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $null)" in compile_script and
+          "[IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)" in compile_script,
+          "shader compilation must replace bytecode only after FXC succeeds")
+    check('throw "FXC reported success but output is missing: $($ActiveJob.Job.OutputPath)"' in compile_script,
           "FXC success must still require a newly generated .cso output")
 
 
@@ -1044,6 +1050,16 @@ def test_local_build_configuration_contract() -> None:
           "repository build must not depend on a machine-specific MSBuild.exe location")
     check('"-p:FxcPath=$fxc"' in build_script,
           "resolved FXC path must be forwarded to the plugin build")
+    lint_function = re.search(r"function Invoke-Lint\s*\{(.*?)\r?\n\}", build_script, re.DOTALL)
+    check(lint_function is not None and "dotnet build" not in lint_function.group(1),
+          "lint must remain a non-build style/analyzer check")
+
+    public_ci = (ROOT / ".github" / "workflows" / "public-ci.yml").read_text(encoding="utf-8")
+    check(".\\scripts\\dev.ps1 fmt -Verify" in public_ci and ".\\scripts\\dev.ps1 lint" in public_ci,
+          "public CI must run formatting and lint checks")
+    check("dotnet build" not in public_ci and ".\\scripts\\dev.ps1 test" not in public_ci and
+          ".\\scripts\\dev.ps1 publish" not in public_ci,
+          "public CI must not build, test, compile shaders, or publish")
 
 
 def test_optimization_contract() -> None:

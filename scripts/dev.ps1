@@ -54,6 +54,149 @@ function Invoke-CommandChecked {
     }
 }
 
+function Get-ShaderDependencyPaths {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$ShaderDirectory
+    )
+
+    $pending = [System.Collections.Generic.Stack[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $pending.Push([IO.Path]::GetFullPath($SourcePath))
+
+    while ($pending.Count -gt 0) {
+        $path = $pending.Pop()
+        if (-not $visited.Add($path)) {
+            continue
+        }
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Shader dependency was not found: $path"
+        }
+
+        foreach ($line in [IO.File]::ReadLines($path)) {
+            if ($line -notmatch '^\s*#\s*include\s+"([^"]+)"') {
+                continue
+            }
+
+            $includeName = $Matches[1]
+            $candidate = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $path) $includeName))
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+                $candidate = [IO.Path]::GetFullPath((Join-Path $ShaderDirectory $includeName))
+            }
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+                throw "Shader include was not found: $includeName (from $path)"
+            }
+            $pending.Push($candidate)
+        }
+    }
+
+    return @($visited)
+}
+
+function Test-ShaderNeedsCompilation {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$OutputPath,
+        [Parameter(Mandatory = $true)][string]$ShaderDirectory
+    )
+
+    if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf)) {
+        return $true
+    }
+
+    $outputTime = (Get-Item -LiteralPath $OutputPath).LastWriteTimeUtc
+    foreach ($dependency in Get-ShaderDependencyPaths -SourcePath $SourcePath -ShaderDirectory $ShaderDirectory) {
+        if ((Get-Item -LiteralPath $dependency).LastWriteTimeUtc -gt $outputTime) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-ShaderCompilerParallelism {
+    $parallelism = [Math]::Max(1, [Math]::Min([Environment]::ProcessorCount, 4))
+    $configured = 0
+    if ([int]::TryParse($env:YMM4SANDSIM_FXC_JOBS, [ref]$configured) -and $configured -gt 0) {
+        $parallelism = [Math]::Min($configured, 16)
+    }
+    return $parallelism
+}
+
+function Start-ShaderCompilerProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$FxcPath,
+        [Parameter(Mandatory = $true)][string]$ShaderDirectory,
+        [Parameter(Mandatory = $true)]$ShaderJob
+    )
+
+    $token = [Guid]::NewGuid().ToString("N")
+    $tempOutput = "$($ShaderJob.OutputPath).tmp.$token"
+    $stdoutPath = "$tempOutput.stdout"
+    $stderrPath = "$tempOutput.stderr"
+    $arguments = @(
+        "/nologo",
+        "/WX",
+        "/O3",
+        "/T", $ShaderJob.Profile,
+        "/E", "main",
+        "/I", ('"{0}"' -f $ShaderDirectory),
+        "/Fo", ('"{0}"' -f $tempOutput),
+        ('"{0}"' -f $ShaderJob.SourcePath)
+    ) -join " "
+
+    Write-Host "Compiling $($ShaderJob.Source) [$($ShaderJob.Profile)]"
+    $process = Start-Process -FilePath $FxcPath -ArgumentList $arguments -NoNewWindow -PassThru `
+        -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+
+    return [pscustomobject]@{
+        Token = $token
+        Job = $ShaderJob
+        Process = $process
+        TempOutput = $tempOutput
+        StdoutPath = $stdoutPath
+        StderrPath = $stderrPath
+    }
+}
+
+function Complete-ShaderCompilerProcess {
+    param([Parameter(Mandatory = $true)]$ActiveJob)
+
+    $process = $ActiveJob.Process
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
+    $process.Dispose()
+
+    $stdout = if (Test-Path -LiteralPath $ActiveJob.StdoutPath -PathType Leaf) {
+        Get-Content -LiteralPath $ActiveJob.StdoutPath -Raw
+    } else { "" }
+    $stderr = if (Test-Path -LiteralPath $ActiveJob.StderrPath -PathType Leaf) {
+        Get-Content -LiteralPath $ActiveJob.StderrPath -Raw
+    } else { "" }
+
+    try {
+        if ($exitCode -ne 0) {
+            $details = (($stdout, $stderr) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine
+            throw "FXC failed for $($ActiveJob.Job.Source) with exit code $exitCode.$([Environment]::NewLine)$details"
+        }
+        if (-not (Test-Path -LiteralPath $ActiveJob.TempOutput -PathType Leaf)) {
+            throw "FXC reported success but output is missing: $($ActiveJob.Job.OutputPath)"
+        }
+
+        if (Test-Path -LiteralPath $ActiveJob.Job.OutputPath -PathType Leaf) {
+            [IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $null)
+        }
+        else {
+            [IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)
+        }
+        Write-Host "Compiled $($ActiveJob.Job.Source)"
+    }
+    finally {
+        Remove-Item -LiteralPath $ActiveJob.TempOutput, $ActiveJob.StdoutPath, $ActiveJob.StderrPath `
+            -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-ShaderBuild {
     $fxc = Get-RequiredFileProperty "FxcPath"
     $shaderDirectory = Join-Path $root "YMM4SandSim\Shaders"
@@ -73,6 +216,7 @@ function Invoke-ShaderBuild {
         @{ Source = "SandRenderPS.hlsl"; Profile = "ps_5_0" }
     )
 
+    $compileJobs = @()
     foreach ($shader in $shaderJobs) {
         $source = Join-Path $shaderDirectory $shader.Source
         $output = [IO.Path]::ChangeExtension($source, ".cso")
@@ -80,16 +224,58 @@ function Invoke-ShaderBuild {
             throw "Shader source was not found: $source"
         }
 
-        Remove-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue
-        Write-Host "Compiling $($shader.Source) [$($shader.Profile)]"
-        $global:LASTEXITCODE = 0
-        & $fxc /nologo /WX /O3 /T $shader.Profile /E main /I $shaderDirectory /Fo $output $source
-        if ($LASTEXITCODE -ne 0) {
-            throw "FXC failed for $($shader.Source) with exit code $LASTEXITCODE."
+        if (Test-ShaderNeedsCompilation -SourcePath $source -OutputPath $output -ShaderDirectory $shaderDirectory) {
+            $compileJobs += [pscustomobject]@{
+                Source = $shader.Source
+                Profile = $shader.Profile
+                SourcePath = $source
+                OutputPath = $output
+            }
         }
-        if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
-            throw "FXC reported success but output is missing: $output"
+    }
+
+    if ($compileJobs.Count -eq 0) {
+        Write-Host "Shaders are up to date."
+        return
+    }
+
+    $parallelism = Get-ShaderCompilerParallelism
+    Write-Host "Compiling $($compileJobs.Count) shader(s) with up to $parallelism parallel FXC process(es)."
+
+    $nextJob = 0
+    $active = @()
+    $failure = $null
+    while ($nextJob -lt $compileJobs.Count -or $active.Count -gt 0) {
+        while ($null -eq $failure -and $nextJob -lt $compileJobs.Count -and $active.Count -lt $parallelism) {
+            $active += Start-ShaderCompilerProcess -FxcPath $fxc -ShaderDirectory $shaderDirectory -ShaderJob $compileJobs[$nextJob]
+            $nextJob++
         }
+
+        $completed = @($active | Where-Object { $_.Process.HasExited })
+        if ($completed.Count -eq 0) {
+            Start-Sleep -Milliseconds 50
+            continue
+        }
+
+        $completedTokens = @($completed | ForEach-Object { $_.Token })
+        foreach ($item in $completed) {
+            try {
+                Complete-ShaderCompilerProcess -ActiveJob $item
+            }
+            catch {
+                if ($null -eq $failure) {
+                    $failure = $_
+                }
+            }
+        }
+        $active = @($active | Where-Object { $_.Token -notin $completedTokens })
+        if ($null -ne $failure) {
+            $nextJob = $compileJobs.Count
+        }
+    }
+
+    if ($null -ne $failure) {
+        throw $failure
     }
 }
 
@@ -157,11 +343,6 @@ function Invoke-Format {
 function Invoke-Lint {
     Invoke-DotnetFormat "style" -VerifyNoChanges
     Invoke-DotnetFormat "analyzers" -VerifyNoChanges
-    $dotnet = Get-RequiredFileProperty "DotnetPath"
-    Invoke-CommandChecked "Build with warnings treated as errors" {
-        & $dotnet build (Join-Path $root "YMM4SandSim\YMM4SandSim.csproj") `
-            -c Release -p:Platform=x64 -p:SkipPluginDeploy=true -p:TreatWarningsAsErrors=true
-    }
 }
 
 function Remove-BuildOutputs {

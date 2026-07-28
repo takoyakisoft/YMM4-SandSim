@@ -232,7 +232,7 @@ DebugビルドはInformationが既定で、必要に応じて環境変数`YMM4SA
 
 `Directory.Build.props`を作成済みなら、直接`dotnet`を実行する場合もローカル設定が読み込まれます。
 
-開発用コマンドは次の構成です。`fmt`と`format`は同じ動作で、`check`は整形、リント、テストを順に実行します。`clean`はリポジトリ内のビルド出力、生成済みシェーダー、配布成果物を削除します。
+開発用コマンドは次の構成です。`fmt`と`format`は同じ動作で、`check`は整形、リント、テストを順に実行します。`clean`はリポジトリ内のビルド出力、生成済みシェーダー、配布成果物を削除します。シェーダーは各HLSLから再帰的にたどった`#include`の更新時刻を確認し、必要な`.cso`だけを`fxc.exe /O3 /WX`で再生成します。複数のシェーダーが必要な場合は既定で最大4プロセスを並列実行し、`YMM4SANDSIM_FXC_JOBS`で1～16へ変更できます。
 
 ```powershell
 .\scripts\dev.ps1             # build
@@ -256,7 +256,7 @@ dotnet build .\YMM4SandSim\YMM4SandSim.csproj -c Release -p:Platform=x64
 .\scripts\dev.ps1 test
 ```
 
-整形と自動修正は`.\scripts\dev.ps1 fmt`（または`format`）、変更を加えないリント検証は`.\scripts\dev.ps1 lint`で実行できます。GitHub ActionsのCIは`fmt -Verify`と`lint`だけを実行します。
+整形と自動修正は`.\scripts\dev.ps1 fmt`（または`format`）、変更を加えないリント検証は`.\scripts\dev.ps1 lint`で実行できます。`lint`はRoslynのstyle/analyzer検証だけを行い、ビルドは実行しません。GitHub Actionsの通常CIも`fmt -Verify`と`lint`だけを実行し、C#ビルド、FXC、テストは実行しません。タグ用のリリースworkflowだけは配布物生成のためReleaseビルドを実行します。
 
 主な検証対象は次のとおりです。
 
