@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("build", "test", "fmt", "format", "lint", "check", "clean", "publish")]
+    [ValidateSet("build", "test", "fmt", "format", "lint", "check", "clean", "publish", "shaders")]
     [string]$Task = "build",
 
     [switch]$Verify
@@ -51,6 +51,45 @@ function Invoke-CommandChecked {
     & $Command
     if ($LASTEXITCODE -ne 0) {
         throw "$Name failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Invoke-ShaderBuild {
+    $fxc = Get-RequiredFileProperty "FxcPath"
+    $shaderDirectory = Join-Path $root "YMM4SandSim\Shaders"
+    $shaderJobs = @(
+        @{ Source = "SandInitialize.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandStep.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidInitialize.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidIntegrate.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidSolve.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidGrid.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidComponents.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidReact.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandExplosionUpdate.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandLightSeed.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandLightPropagate.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandFullscreenVS.hlsl"; Profile = "vs_5_0" },
+        @{ Source = "SandRenderPS.hlsl"; Profile = "ps_5_0" }
+    )
+
+    foreach ($shader in $shaderJobs) {
+        $source = Join-Path $shaderDirectory $shader.Source
+        $output = [IO.Path]::ChangeExtension($source, ".cso")
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Shader source was not found: $source"
+        }
+
+        Remove-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue
+        Write-Host "Compiling $($shader.Source) [$($shader.Profile)]"
+        $global:LASTEXITCODE = 0
+        & $fxc /nologo /WX /O3 /T $shader.Profile /E main /I $shaderDirectory /Fo $output $source
+        if ($LASTEXITCODE -ne 0) {
+            throw "FXC failed for $($shader.Source) with exit code $LASTEXITCODE."
+        }
+        if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
+            throw "FXC reported success but output is missing: $output"
+        }
     }
 }
 
@@ -261,6 +300,9 @@ switch ($Task) {
     }
     "clean" {
         Remove-BuildOutputs
+    }
+    "shaders" {
+        Invoke-ShaderBuild
     }
     "publish" {
         Invoke-PluginBuild -Deploy
