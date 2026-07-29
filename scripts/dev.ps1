@@ -185,6 +185,7 @@ function Complete-ShaderCompilerProcess {
     param([Parameter(Mandatory = $true)]$ActiveJob)
 
     $process = $ActiveJob.Process
+    $backupOutput = "$($ActiveJob.Job.OutputPath).bak.$($ActiveJob.Token)"
     $process.WaitForExit()
     $exitCode = $process.ExitCode
     $process.Dispose()
@@ -208,7 +209,9 @@ function Complete-ShaderCompilerProcess {
         }
 
         if (Test-Path -LiteralPath $ActiveJob.Job.OutputPath -PathType Leaf) {
-            [IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $null)
+            # Windows PowerShell 5.1 binds a null backup path as an invalid
+            # empty string, so use a unique backup and remove it below.
+            [IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $backupOutput)
         }
         else {
             [IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)
@@ -217,7 +220,7 @@ function Complete-ShaderCompilerProcess {
         Write-Host ("Compiled {0} in {1:n1}s" -f $ActiveJob.Job.Source, $elapsed.TotalSeconds)
     }
     finally {
-        Remove-Item -LiteralPath $ActiveJob.TempOutput, $ActiveJob.StdoutPath, $ActiveJob.StderrPath `
+        Remove-Item -LiteralPath $ActiveJob.TempOutput, $backupOutput, $ActiveJob.StdoutPath, $ActiveJob.StderrPath `
             -Force -ErrorAction SilentlyContinue
     }
 }

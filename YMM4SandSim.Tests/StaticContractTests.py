@@ -276,7 +276,8 @@ def test_shader_build_list() -> None:
           '"/O3"' in compile_script and '"/O0"' in compile_script and '$output.mode' in compile_script,
           "shader compilation must retain explicit optimization modes for diagnostics")
     check("$tempOutput" in compile_script and
-          "[IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $null)" in compile_script and
+          "[IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $backupOutput)" in compile_script and
+          "$backupOutput" in compile_script and
           "[IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)" in compile_script,
           "shader compilation must replace bytecode only after FXC succeeds")
     check('throw "FXC reported success but output is missing: $($ActiveJob.Job.OutputPath)"' in compile_script,
