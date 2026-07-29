@@ -165,6 +165,9 @@ function Start-ShaderCompilerProcess {
     $startedAt = [DateTime]::UtcNow
     $process = Start-Process -FilePath $FxcPath -ArgumentList $arguments -NoNewWindow -PassThru `
         -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    # Windows PowerShell 5.1 can return a blank ExitCode unless the process
+    # handle is opened before the child exits.
+    $null = $process.Handle
 
     return [pscustomobject]@{
         Token = $token

@@ -1056,6 +1056,8 @@ def test_local_build_configuration_contract() -> None:
     check('"-p:YMM4SandSimShaderOptimization=$Optimization"' in build_script and
           build_script.count('Invoke-PluginBuild -Deploy -Optimization Release') >= 2,
           "normal and publish builds must use final shader optimization")
+    check("$null = $process.Handle" in build_script,
+          "Windows PowerShell must retain the FXC process handle so ExitCode is available")
     check('-p:SkipShaderCompilation=true' in build_script,
           "xUnit test builds must skip shader compilation")
 
