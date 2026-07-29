@@ -49,9 +49,8 @@ bool IsOccupiedByOtherBody(uint2 id, uint2 target)
 
 bool HasExternalObstacle(uint2 id, uint2 target)
 {
-    // Loose powder should be displaced/covered by a moving rigid body rather
-    // than stopping the entire connected body. Noita's rigid bridge likewise ejects
-    // overlapping loose pixels when a Box2D body is written back to the grid.
+    // Loose powder should be displaced or covered by a moving rigid body rather
+    // than stopping the entire connected body.
     return IsFixedCell(target) || IsOccupiedByOtherBody(id, target);
 }
 

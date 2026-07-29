@@ -31,11 +31,8 @@ YMM4-SandSimには、Direct3D 11上で動く既存のセルオートマトンが
 
 ## XPBDを採用した理由
 
-AVBDはGPU並列剛体に適した手法ですが、参照したdemo2dのCPU実装にはBodyとcontactのリストがあり、collision discoveryには単純な全組み合わせ探索があります。
 YMM4-SandSimにはすでに規則格子があるため、その構造をbroadphaseとownershipへ流用できます。
-
-固定トポロジのXPBDなら、可変長GPUデータ構造やCPU同期を追加せず、Direct3D 11とShader Model 5の範囲へ収められます。
-この条件が、AVBDを直接移植せずXPBDを採用した理由です。
+固定トポロジのXPBDなら、可変長GPUデータ構造やCPU同期を追加せず、Direct3D 11とShader Model 5の範囲で固体の変形、衝突、破断を処理できます。
 
 ## 決定性
 
@@ -59,13 +56,6 @@ GPU上では、次の双方向連携を行います。
   同じCA iterationで高価なcollision resolveを二重実行しません。
 
 液体の体積押し出しと圧力、粉体をrigidが押し退ける処理、完全な流体と固体の接触、任意位置での新規rigid particle poolは、現在のモデルには含めていません。
-
-## 設計上の参照元
-
-- FallingSandJava：動くsolid elementをcellular matrixへ戻す構成を参照しました。
-  ソースコードはコピーも翻訳もしていません。
-- avbd-demo2d：MITライセンスの2D実装を、反復制約型の剛体solver構成を確認するために参照しました。
-  AVBDのソースコードはshaderへ移植していません。
 
 ## 素材別のXPBD特性
 

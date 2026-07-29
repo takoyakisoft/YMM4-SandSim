@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <YMM4SandSimVersion>0.5.0</YMM4SandSimVersion>
+    <YMM4SandSimVersion>1.0.0</YMM4SandSimVersion>
     <Version>$(YMM4SandSimVersion)</Version>
     <AssemblyVersion>$(YMM4SandSimVersion).0</AssemblyVersion>
     <FileVersion>$(YMM4SandSimVersion).0</FileVersion>

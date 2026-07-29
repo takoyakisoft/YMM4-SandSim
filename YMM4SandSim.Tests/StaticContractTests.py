@@ -35,15 +35,18 @@ def test_material_enum(entries: list[dict[str, object]]) -> None:
     values = {name: int(value) for name, value in enum_values}
     for entry in entries:
         check(values.get(str(entry["name"])) == int(entry["id"]), f"enum mismatch: {entry['name']}")
-    check(values.get("Ember") == 7, "legacy Ember id must remain 7")
-    check(values.get("Gunpowder") == 9, "legacy Gunpowder id must remain 9")
+    palette_names = {str(entry["name"]) for entry in entries}
+    check(set(values) - palette_names == {"Ember", "Gunpowder"},
+          "SandMaterial must contain exactly the two simulation-only materials outside the 55-color palette")
 
 def test_shader_material_contract(entries: list[dict[str, object]]) -> None:
     core = (SHADERS / "SandCore.hlsli").read_text(encoding="utf-8")
     common = (SHADERS / "SandCommon.hlsli").read_text(encoding="utf-8")
-    for entry in entries:
-        token = f"static const uint Material{entry['name']} = {entry['id']}u;"
-        check(token in core, token)
+    enum_text = (PRODUCT / "SandMaterial.cs").read_text(encoding="utf-8")
+    enum_values = re.findall(r"^\s+(\w+) = (\d+),$", enum_text, re.M)
+    for name, value in enum_values:
+        token = f"static const uint Material{name} = {value}u;"
+        check(token in core, f"C#/HLSL material id mismatch: {name}")
 
     checks = {
         "MaterialMask = 0x0000003fu": "6-bit material mask",
@@ -1138,16 +1141,18 @@ def test_optimization_contract() -> None:
 def test_documentation_contract() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     design = (ROOT / "docs" / "GPU_SOLID_PHYSICS.md").read_text(encoding="utf-8")
-    check("GPU Connected Components" in readme and "同一素材" in readme and "空洞" in readme,
-          "README must describe current same-material connected-body/empty-hole collision behavior")
-    check("52 byte/cell" in readme and "84 byte/cell" in readme and "166.1 MiB" in readme,
-          "README GPU memory figures must include connected-body label/contact state")
-    check("YMM4SANDSIM_LOG_LEVEL=Information" in readme and "cpuSubmitMs" in readme and
-          "GPU実行時間ではありません" in readme,
-          "README must document opt-in performance logging without calling CPU submit time GPU time")
+    for heading in ("## インストール方法", "## 使い方", "## 動作環境", "## 開発者向け", "## ライセンス", "## 謝辞"):
+        check(heading in readme, f"README missing user/developer structure: {heading}")
+    check(readme.index("## 使い方") < readme.index("## 開発者向け"),
+          "README must present user documentation before developer internals")
+    check("主な変更" not in readme and "アップデート" not in readme,
+          "initial v1.0.0 README must not contain an update-history section")
     check("GPU Connected Components" in design and "異素材間にはXPBD bondを張りません" in design and
           "timestamp query" in design and "84 byte/cell" in design,
           "GPU solid-physics design must match connected bodies, material separation, profiling, and memory layout")
+    check("YMM4SANDSIM_LOG_LEVEL=Information" in design and "cpuSubmitMs" in design and
+          "GPU実行時間ではありません" in design,
+          "performance diagnostics belong in the technical design document")
     for stale in ("XPBDは44 byte/cell", "全機能有効時は76 byte/cell", "約150.3 MiB"):
         check(stale not in readme and stale not in design, f"stale documentation remains: {stale}")
 

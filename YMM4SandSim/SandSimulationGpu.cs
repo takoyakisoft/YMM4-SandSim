@@ -719,8 +719,7 @@ internal sealed class SandSimulationGpu : IDisposable
         constants.PhysicsPhase = 0u;
 
         // The lattice is continuous during XPBD projection, then mapped back to
-        // the cellular grid like FallingSandJava maps Body-local elements back
-        // into its matrix. Atomic owner selection makes contested cells fully
+        // the cellular grid. Atomic owner selection makes contested cells fully
         // deterministic without CPU readback or an O(N^2) broadphase.
         BuildRigidOccupancy(ref constants, resolveConflicts: true);
     }
