@@ -45,6 +45,7 @@ public sealed class ExplosionShaderContractTests
         Assert.Contains("RigidFractureSpanCells(material)", source);
         Assert.Contains("RigidBodyLabel.Load", source);
         Assert.Contains("EstimateRigidBodyReference(id, current, rigidBodyOwner)", source);
+        Assert.Contains("frontMask * (0.55f + strengthScale * 0.65f) * densityScale", source);
         Assert.Contains("return delta / distance * impulseMagnitude", source);
         Assert.Contains("rsqrt(max(rigidDensity, 0.50f))", source);
         Assert.Contains("pressureGradient / gradientMagnitude", source);

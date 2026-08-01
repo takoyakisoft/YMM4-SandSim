@@ -539,6 +539,8 @@ def test_explosion_and_lighting_contract() -> None:
           "CA motion must consume the GPU pressure field")
     check("ExplosionPressure : register(t2)" in integrate and "ExplosionImpulseAt" in integrate,
           "XPBD integration must consume the same pressure field")
+    check("frontMask * (0.55f + strengthScale * 0.65f) * densityScale" in integrate,
+          "controller explosion impulses must scale with rigid material density")
     check("BrokenRigidBondMarker" in integrate and "fractureThreshold" in integrate,
           "explosion impulse must be able to fracture XPBD bonds")
     check("PreviousPressure : register(t0)" in explosion and "ExplosionFalloff" in explosion and "ExplosionDecay" in explosion,
@@ -1080,9 +1082,10 @@ def test_local_build_configuration_contract() -> None:
     public_ci = (ROOT / ".github" / "workflows" / "public-ci.yml").read_text(encoding="utf-8")
     check(".\\scripts\\dev.ps1 fmt -Verify" in public_ci and ".\\scripts\\dev.ps1 lint" in public_ci,
           "public CI must run formatting and lint checks")
-    check("dotnet build" not in public_ci and ".\\scripts\\dev.ps1 test" not in public_ci and
-          ".\\scripts\\dev.ps1 publish" not in public_ci,
-          "public CI must not build, test, compile shaders, or publish")
+    check(".\\scripts\\dev.ps1 test" in public_ci,
+          "public CI must run static contract and xUnit tests")
+    check("dotnet build" not in public_ci and ".\\scripts\\dev.ps1 publish" not in public_ci,
+          "public CI must not build, compile shaders, or publish")
 
 
 def test_optimization_contract() -> None:

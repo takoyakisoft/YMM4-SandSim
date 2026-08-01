@@ -21,6 +21,7 @@ float2 ExplosionImpulseAt(uint2 cell, float2 rigidBodyReference, float rigidDens
 
     const int2 p = int2(cell);
     const float centerPressure = ReadExplosionPressure(p);
+    const float densityScale = rsqrt(max(rigidDensity, 0.50f));
 
     if (IsInsideManualExplosionRegionAt(rigidBodyReference))
     {
@@ -39,11 +40,9 @@ float2 ExplosionImpulseAt(uint2 cell, float2 rigidBodyReference, float rigidDens
         // impulse merely because they fall inside one fixed macro rectangle.
         const float strengthScale = sqrt(max(ExplosionStrength, 0.0f));
         const float impulseMagnitude =
-            frontMask * (0.55f + strengthScale * 0.65f);
+            frontMask * (0.55f + strengthScale * 0.65f) * densityScale;
         return delta / distance * impulseMagnitude;
     }
-
-    const float densityScale = rsqrt(max(rigidDensity, 0.50f));
 
     const float left = ReadExplosionPressure(p + int2(-1, 0));
     const float right = ReadExplosionPressure(p + int2(1, 0));

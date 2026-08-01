@@ -65,3 +65,7 @@ jobs:
       - name: Lint
         shell: pwsh
         run: .\scripts\dev.ps1 lint
+
+      - name: Run tests
+        shell: pwsh
+        run: .\scripts\dev.ps1 test
