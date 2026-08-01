@@ -1082,10 +1082,9 @@ def test_local_build_configuration_contract() -> None:
     public_ci = (ROOT / ".github" / "workflows" / "public-ci.yml").read_text(encoding="utf-8")
     check(".\\scripts\\dev.ps1 fmt -Verify" in public_ci and ".\\scripts\\dev.ps1 lint" in public_ci,
           "public CI must run formatting and lint checks")
-    check(".\\scripts\\dev.ps1 test" in public_ci,
-          "public CI must run static contract and xUnit tests")
-    check("dotnet build" not in public_ci and ".\\scripts\\dev.ps1 publish" not in public_ci,
-          "public CI must not build, compile shaders, or publish")
+    check("dotnet build" not in public_ci and ".\\scripts\\dev.ps1 test" not in public_ci and
+          ".\\scripts\\dev.ps1 publish" not in public_ci,
+          "public CI must not build, test, compile shaders, or publish")
 
 
 def test_optimization_contract() -> None:
