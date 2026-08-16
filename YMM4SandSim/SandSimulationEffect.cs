@@ -25,7 +25,7 @@ public sealed class SandSimulationEffect : VideoEffectBase
         get => _isScreenSize;
         set => Set(ref _isScreenSize, value);
     }
-    private bool _isScreenSize = true;
+    private bool _isScreenSize;
 
     [Display(GroupName = nameof(Translate.Group_Basic), Name = nameof(Translate.SourceMode_Name), Description = nameof(Translate.SourceMode_Desc), ResourceType = typeof(Translate))]
     [EnumComboBox]
@@ -117,14 +117,14 @@ public sealed class SandSimulationEffect : VideoEffectBase
         SandSimulationSettings.AnimationMaximum);
 
     [Display(GroupName = nameof(Translate.Group_SolidPhysics), Name = nameof(Translate.Stiffness_Name), Description = nameof(Translate.Stiffness_Desc), ResourceType = typeof(Translate))]
-    [AnimationSlider("F1", "%", 25, SandSimulationSettings.PercentMultiplierSliderMaximum)]
+    [AnimationSlider("F1", "%", SandSimulationSettings.PercentMultiplierSliderMinimum, SandSimulationSettings.PercentMultiplierSliderMaximum)]
     public Animation SolidStiffness { get; } = new(
         100,
         SandSimulationSettings.PositiveAnimationMinimum,
         SandSimulationSettings.AnimationMaximum);
 
     [Display(GroupName = nameof(Translate.Group_SolidPhysics), Name = nameof(Translate.BreakStrength_Name), Description = nameof(Translate.BreakStrength_Desc), ResourceType = typeof(Translate))]
-    [AnimationSlider("F1", "%", 25, SandSimulationSettings.PercentMultiplierSliderMaximum)]
+    [AnimationSlider("F1", "%", SandSimulationSettings.PercentMultiplierSliderMinimum, SandSimulationSettings.PercentMultiplierSliderMaximum)]
     public Animation SolidBreakStrength { get; } = new(
         100,
         SandSimulationSettings.PositiveAnimationMinimum,
@@ -175,9 +175,9 @@ public sealed class SandSimulationEffect : VideoEffectBase
         SandSimulationSettings.AnimationMaximum);
 
     [Display(GroupName = nameof(Translate.Group_Explosion), Name = nameof(Translate.ExplosionRadius_Name), Description = nameof(Translate.ExplosionRadius_Desc), ResourceType = typeof(Translate))]
-    [AnimationSlider("F0", "セル", 2, SandSimulationSettings.MaximumExplosionRadius)]
+    [AnimationSlider("F0", "px", 2, SandSimulationSettings.ExplosionRadiusSliderMaximum)]
     public Animation ExplosionRadius { get; } = new(
-        8,
+        120,
         SandSimulationSettings.PositiveAnimationMinimum,
         SandSimulationSettings.AnimationMaximum);
 

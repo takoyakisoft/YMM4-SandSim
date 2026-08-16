@@ -105,6 +105,29 @@ float4 RigidProperties(uint material)
     return float4(1.50f, 1.00f, 0.9980f, 0.20f);
 }
 
+// Controller explosions fracture connected bodies on a coarse lattice whose
+// physical scale is material-specific rather than tied to blast radius. This
+// keeps radius as a reach control while brittle glass/ice break into smaller
+// pieces and ductile metals/wood preserve larger chunks.
+uint RigidFractureSpanCells(uint material)
+{
+    float spanPixels = 96.0f;
+    if (material == MaterialCobaltGlass || material == MaterialIce) spanPixels = 32.0f;
+    else if (material == MaterialSandstone || material == MaterialCoral || material == MaterialCalcite) spanPixels = 56.0f;
+    else if (material == MaterialStone || material == MaterialBrick || material == MaterialQuartz ||
+             material == MaterialAmethyst || material == MaterialLapisLazuli || material == MaterialAzurite ||
+             material == MaterialFluorite || material == MaterialCharoite || material == MaterialRoseQuartz ||
+             material == MaterialRuby || material == MaterialJade || material == MaterialPrismarine ||
+             material == MaterialSeaLantern || material == MaterialEndStone || material == MaterialPermafrost) spanPixels = 80.0f;
+    else if (material == MaterialWood || material == MaterialAmber) spanPixels = 128.0f;
+    else if (material == MaterialMetal || material == MaterialCopper || material == MaterialGold ||
+             material == MaterialOxidizedCopper || material == MaterialVerdigris) spanPixels = 160.0f;
+    else if (material == MaterialPinkWax || material == MaterialPlant || material == MaterialMoss ||
+             material == MaterialGrass || material == MaterialAlgae || material == MaterialLeaf) spanPixels = 112.0f;
+
+    return max((uint)ceil(spanPixels / max((float)ParticleSize, 1.0f)), 2u);
+}
+
 // x=density relative to water, y=rigid velocity retention while overlapping it.
 float2 FluidProperties(uint material)
 {
@@ -119,16 +142,39 @@ float2 FluidProperties(uint material)
     return float2(0.0f, 1.0f);
 }
 
-float RigidPairComplianceScale(float4 propertiesA, float4 propertiesB, bool sameMaterial)
+float RigidPairComplianceScale(float4 propertiesA, float4 propertiesB, bool sameCohesiveRegion)
 {
     const float baseScale = max(propertiesA.y, propertiesB.y);
-    return sameMaterial ? baseScale : baseScale * 1.75f;
+    return sameCohesiveRegion ? baseScale : baseScale * 1.75f;
 }
 
-float RigidPairBreakStrain(float4 propertiesA, float4 propertiesB, bool sameMaterial)
+float RigidPairBreakStrain(float4 propertiesA, float4 propertiesB, bool sameCohesiveRegion)
 {
     const float baseStrain = min(propertiesA.w, propertiesB.w);
-    return sameMaterial ? baseStrain : baseStrain * 0.70f;
+    return sameCohesiveRegion ? baseStrain : baseStrain * 0.70f;
+}
+
+uint2 RigidBodySource(uint owner)
+{
+    const uint index = owner - 1u;
+    return uint2(index % StateWidth, index / StateWidth);
+}
+
+bool IsValidRigidBodyOwner(uint owner)
+{
+    return owner != 0u && owner != 0xffffffffu;
+}
+
+float2 EstimateRigidBodyReference(uint2 sourceId, float2 currentPosition, uint bodyOwner)
+{
+    if (!IsValidRigidBodyOwner(bodyOwner))
+        return currentPosition - 0.5f;
+
+    const uint2 representative = RigidBodySource(bodyOwner);
+    // Connected-component labels are source-space identities. Approximate the
+    // representative's current location from this particle's translation so all
+    // members receive one coherent controller-blast direction without CPU state.
+    return currentPosition - 0.5f + float2(representative) - float2(sourceId);
 }
 
 static const float BrokenRigidBondMarker = 1.0e20f;
@@ -156,6 +202,93 @@ bool IsOrganic(uint material)
 bool IsHeat(uint material)
 {
     return MaterialInSet(material, HeatMaskLow, HeatMaskHigh);
+}
+
+static const uint InactiveManualExplosionWaveStep = 0xffffffffu;
+
+bool HasManualExplosionWave()
+{
+    return ManualExplosionWaveStep != InactiveManualExplosionWaveStep;
+}
+
+float ManualExplosionDistanceAt(float2 position)
+{
+    const float2 delta = position - float2(ManualExplosionCellX, ManualExplosionCellY);
+    return length(delta);
+}
+
+float ManualExplosionDistance(uint2 cell)
+{
+    return ManualExplosionDistanceAt(float2(cell));
+}
+
+bool IsInsideManualExplosionRegionAt(float2 position)
+{
+    return HasManualExplosionWave() &&
+        ManualExplosionDistanceAt(position) <= max(ExplosionRadius, 1.0f) + 1.0f;
+}
+
+bool IsInsideManualExplosionRegion(uint2 cell)
+{
+    return IsInsideManualExplosionRegionAt(float2(cell));
+}
+
+float ManualExplosionWaveMaskAt(float2 position)
+{
+    if (!HasManualExplosionWave())
+        return 0.0f;
+
+    const float waveRadius = (float)ManualExplosionWaveStep;
+    if (waveRadius > max(ExplosionRadius, 1.0f))
+        return 0.0f;
+
+    const float distance = ManualExplosionDistanceAt(position);
+    const float halfWidth = 0.75f;
+    return saturate(1.0f - abs(distance - waveRadius) / halfWidth);
+}
+
+float ManualExplosionWaveMask(uint2 cell)
+{
+    return ManualExplosionWaveMaskAt(float2(cell));
+}
+
+float ManualExplosionBlastMaskAt(float2 position)
+{
+    if (!HasManualExplosionWave())
+        return 0.0f;
+
+    const float waveRadius = (float)ManualExplosionWaveStep;
+    const float distance = ManualExplosionDistanceAt(position);
+    if (waveRadius > max(ExplosionRadius, 1.0f) || distance > waveRadius + 0.75f)
+        return 0.0f;
+
+    // Keep the visible front thin, but let high-strength explosions leave a
+    // wider pressure wake. Rigid/CA material can therefore receive the blast on
+    // successive frame steps instead of strength disappearing into one velocity cap.
+    const float strengthScale = sqrt(max(ExplosionStrength, 0.0f));
+    // The host advances the controller front in about six output frames. Make the
+    // wake at least one radial stride wide so no cells are skipped when a large
+    // radius jumps several cells between rendered frames.
+    const float propagationStride = max(ceil(max(ExplosionRadius, 1.0f) / 6.0f), 1.0f);
+    const float trailWidth = propagationStride + 1.0f + strengthScale;
+    const float behindFront = max(waveRadius - distance, 0.0f);
+    const float trail = saturate(1.0f - behindFront / trailWidth);
+    return max(ManualExplosionWaveMaskAt(position), trail);
+}
+
+float ManualExplosionBlastMask(uint2 cell)
+{
+    return ManualExplosionBlastMaskAt(float2(cell));
+}
+
+float ManualExplosionCavityRadius()
+{
+    const float radius = max(ExplosionRadius, 1.0f);
+    const float intensityScale = max(
+        sqrt(sqrt(max(ExplosionStrength, 0.01f))), 0.60f);
+    // Radius is the semantic boundary of the effect. Strength may carve more of
+    // that radius, but there is no unrelated fixed cell-count ceiling.
+    return min(radius, max(radius * 0.18f * intensityScale, 1.5f));
 }
 
 // Fraction of a pressure wave that enters a cell occupied by this material.

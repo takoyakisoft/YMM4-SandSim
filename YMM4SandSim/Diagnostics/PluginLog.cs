@@ -99,6 +99,12 @@ internal static class PluginLog
         }
     }
 
+    internal static bool IsEnabled(PluginLogLevel level)
+    {
+        EnsureInitialized();
+        return _file != null && level >= _minimumLevel;
+    }
+
     internal static void Debug(string message) => Write(PluginLogLevel.Debug, message, null);
 
     internal static void Information(string message) => Write(PluginLogLevel.Information, message, null);
@@ -189,11 +195,13 @@ internal static class PluginLog
 
     private static PluginLogLevel ResolveMinimumLevel()
     {
-#if DEBUG
+        // Keep Release quiet by default, but let support/performance sessions
+        // explicitly opt in without requiring a Debug plugin build.
         var configured = Environment.GetEnvironmentVariable(LogLevelEnvironmentVariable);
         if (Enum.TryParse<PluginLogLevel>(configured, ignoreCase: true, out var parsed))
             return parsed;
 
+#if DEBUG
         return PluginLogLevel.Information;
 #else
         return PluginLogLevel.Error;

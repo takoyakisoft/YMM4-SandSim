@@ -72,7 +72,7 @@
 <data name="SourceMode_Name" xml:space="preserve"><value>Input Mode</value></data>
 <data name="SourceMode_Desc" xml:space="preserve"><value>Selects initial-frame capture, continuous filling of empty cells, or restamping selected positions every frame. XPBD solids use one slot per input cell and are not duplicated by continuous input.</value></data>
 <data name="ParticleSize_Name" xml:space="preserve"><value>Particle Size</value></data>
-<data name="ParticleSize_Desc" xml:space="preserve"><value>Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 150 MiB. The state budget is about 304 MiB.</value></data>
+<data name="ParticleSize_Desc" xml:space="preserve"><value>Sets the pixels represented by one cell. Larger values are faster and use less GPU memory. 4 px is recommended. At 1080p/1 px, CA uses about 32 MiB and all features use about 166 MiB. The state budget is about 304 MiB.</value></data>
 <data name="MaterialAssignment_Name" xml:space="preserve"><value>Material Assignment</value></data>
 <data name="MaterialAssignment_Desc" xml:space="preserve"><value>Classifies the source into 55 colors mapped one-to-one to physical materials, or converts it to one material.</value></data>
 <data name="SingleMaterial_Name" xml:space="preserve"><value>Single Material</value></data>
@@ -92,9 +92,9 @@
 <data name="Gravity_Name" xml:space="preserve"><value>Gravity</value></data>
 <data name="Gravity_Desc" xml:space="preserve"><value>Sets gravity applied to XPBD solids. 100% is standard. Buoyancy is also applied in liquids according to material density.</value></data>
 <data name="Stiffness_Name" xml:space="preserve"><value>Stiffness</value></data>
-<data name="Stiffness_Desc" xml:space="preserve"><value>Sets material stiffness. 100% is standard; higher values preserve shape more strongly.</value></data>
+<data name="Stiffness_Desc" xml:space="preserve"><value>Sets material stiffness. 100% is standard; at 0% constraints are nearly disabled</value></data>
 <data name="BreakStrength_Name" xml:space="preserve"><value>Fracture Strength</value></data>
-<data name="BreakStrength_Desc" xml:space="preserve"><value>Sets material resistance to fracture. 100% is standard; higher values make breaking and tearing less likely.</value></data>
+<data name="BreakStrength_Desc" xml:space="preserve"><value>Sets material resistance to fracture. 100% is standard; at 0% solids are extremely fragile</value></data>
 <data name="SolverIterations_Name" xml:space="preserve"><value>Solver Iterations</value></data>
 <data name="SolverIterations_Desc" xml:space="preserve"><value>Sets XPBD solver iterations. Higher values stabilize stiff materials and increase GPU load.</value></data>
 <data name="ExplosionController_Name" xml:space="preserve"><value>Control Points</value></data>
@@ -108,7 +108,7 @@
 <data name="ExplosionStrength_Name" xml:space="preserve"><value>Strength</value></data>
 <data name="ExplosionStrength_Desc" xml:space="preserve"><value>Sets explosion pressure strength. 100% is standard; 0% disables pressure waves</value></data>
 <data name="ExplosionRadius_Name" xml:space="preserve"><value>Radius</value></data>
-<data name="ExplosionRadius_Desc" xml:space="preserve"><value>Sets the approximate pressure-wave radius in cells. Pressure propagates on each update as a shock wave.</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>Sets the explosion effect radius in pixels. The on-screen radius is independent of particle size and the shockwave expands radially from the blast center.</value></data>
 <data name="LightingStrength_Name" xml:space="preserve"><value>Strength</value></data>
 <data name="LightingStrength_Desc" xml:space="preserve"><value>Sets light strength from fire, embers, lava, sea lanterns and explosions. 100% is standard; 0% disables lighting.</value></data>
 <data name="LightingRadius_Name" xml:space="preserve"><value>Radius</value></data>
@@ -145,7 +145,7 @@
 <data name="Material_Water" xml:space="preserve"><value>Water (#0078f8)</value></data>
 <data name="Material_Salt" xml:space="preserve"><value>Salt (#f8f8f8)</value></data>
 <data name="Material_Wood" xml:space="preserve"><value>Wood (#881400)</value></data>
-<data name="Material_Fire" xml:space="preserve"><value>Fire (#e45c10)</value></data>
+<data name="Material_Fire" xml:space="preserve"><value>Fire (#f82004)</value></data>
 <data name="Material_Smoke" xml:space="preserve"><value>Smoke (#787878)</value></data>
 <data name="Material_Ember" xml:space="preserve"><value>Ember (reaction/support material)</value></data>
 <data name="Material_Steam" xml:space="preserve"><value>Steam (#a4e4fc)</value></data>

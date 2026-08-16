@@ -35,15 +35,18 @@ def test_material_enum(entries: list[dict[str, object]]) -> None:
     values = {name: int(value) for name, value in enum_values}
     for entry in entries:
         check(values.get(str(entry["name"])) == int(entry["id"]), f"enum mismatch: {entry['name']}")
-    check(values.get("Ember") == 7, "legacy Ember id must remain 7")
-    check(values.get("Gunpowder") == 9, "legacy Gunpowder id must remain 9")
+    palette_names = {str(entry["name"]) for entry in entries}
+    check(set(values) - palette_names == {"Ember", "Gunpowder"},
+          "SandMaterial must contain exactly the two simulation-only materials outside the 55-color palette")
 
 def test_shader_material_contract(entries: list[dict[str, object]]) -> None:
     core = (SHADERS / "SandCore.hlsli").read_text(encoding="utf-8")
     common = (SHADERS / "SandCommon.hlsli").read_text(encoding="utf-8")
-    for entry in entries:
-        token = f"static const uint Material{entry['name']} = {entry['id']}u;"
-        check(token in core, token)
+    enum_text = (PRODUCT / "SandMaterial.cs").read_text(encoding="utf-8")
+    enum_values = re.findall(r"^\s+(\w+) = (\d+),$", enum_text, re.M)
+    for name, value in enum_values:
+        token = f"static const uint Material{name} = {value}u;"
+        check(token in core, f"C#/HLSL material id mismatch: {name}")
 
     checks = {
         "MaterialMask = 0x0000003fu": "6-bit material mask",
@@ -248,7 +251,7 @@ def test_initialize_and_step() -> None:
           "Margolus boundary cells must advance lifetime even when they are outside a shifted 2x2 block")
     check(step.count("AdvanceStandaloneCell(") >= 11,
           "all 1D and shifted-phase boundary paths must use standalone lifetime advancement")
-    check("if (ColorMode == 1u)" in render, "PreserveInput mode missing")
+    check("if (ColorMode == 1u && !transientHeat)" in render, "PreserveInput mode missing")
     check("straightColor = UnpackColor(color);" in render, "PreserveInput must load original color")
 
     for name, text in (("initialize", initialize), ("step", step), ("render", render)):
@@ -265,9 +268,19 @@ def test_shader_build_list() -> None:
     check("SandRigidReact.hlsl" in script_shaders, "rigid reaction shader must be compiled by FXC")
     for shader in ("SandExplosionUpdate.hlsl", "SandLightSeed.hlsl", "SandLightPropagate.hlsl"):
         check(shader in script_shaders, f"{shader} must be compiled by FXC")
-    check("Remove-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue" in compile_script,
-          "shader compilation must remove stale bytecode before invoking FXC")
-    check('throw "FXC reported success but output is missing: $output"' in compile_script,
+    check("Get-ShaderDependencyPaths" in compile_script and "LastWriteTimeUtc" in compile_script,
+          "shader compilation must track recursive includes and skip up-to-date bytecode")
+    check("Start-Process -FilePath $FxcPath" in compile_script and "Get-ShaderCompilerParallelism" in compile_script,
+          "shader compilation must run independent FXC processes in parallel")
+    check('[ValidateSet("Fast", "Release")]' in compile_script and
+          '"/O3"' in compile_script and '"/O0"' in compile_script and '$output.mode' in compile_script,
+          "shader compilation must retain explicit optimization modes for diagnostics")
+    check("$tempOutput" in compile_script and
+          "[IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $backupOutput)" in compile_script and
+          "$backupOutput" in compile_script and
+          "[IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)" in compile_script,
+          "shader compilation must replace bytecode only after FXC succeeds")
+    check('throw "FXC reported success but output is missing: $($ActiveJob.Job.OutputPath)"' in compile_script,
           "FXC success must still require a newly generated .cso output")
 
 
@@ -292,10 +305,10 @@ def test_constant_buffer_layout() -> None:
     hlsl_body = re.search(r"cbuffer SandConstants : register\(b0\)\s*\{(.*?)\};", core, re.S)
     cs_body = re.search(r"private struct GpuConstants\s*\{(.*?)\n\s*\}", gpu, re.S)
     check(hlsl_body is not None and cs_body is not None, "constant buffer definitions missing")
-    hlsl = re.findall(r"\b(?:uint|float)\s+(\w+)\s*;", hlsl_body.group(1))
-    csharp = re.findall(r"public (?:uint|float) (\w+);", cs_body.group(1))
+    hlsl = re.findall(r"\b(?:int|uint|float)\s+(\w+)\s*;", hlsl_body.group(1))
+    csharp = re.findall(r"public (?:int|uint|float) (\w+);", cs_body.group(1))
     check(hlsl == csharp, "HLSL/C# constant buffer layout mismatch")
-    check(len(hlsl) == 44 and len(hlsl) % 4 == 0, "constant buffer must contain 44 aligned scalars")
+    check(len(hlsl) == 48 and len(hlsl) % 4 == 0, "constant buffer must contain 48 aligned scalars")
 
 def test_multi_instance_graph_and_context_contract() -> None:
     processor = (PRODUCT / "SandSimulationEffectProcessor.cs").read_text(encoding="utf-8")
@@ -310,9 +323,10 @@ def test_multi_instance_graph_and_context_contract() -> None:
     check("SandComposite.hlsl" not in csproj and not (SHADERS / "SandComposite.hlsl").exists(),
           "obsolete D2D composite shader must not be compiled or deployed")
     check("SourceTexture" not in render and "sourceColor" not in render and "Amount" not in render and
-          "if (material == MaterialEmpty)" in render and "return 0.0f;" in render and
-          "return sandColor;" in render,
-          "plugin-owned D3D render pass must output only the simulation with transparent empty cells")
+          "if (material == MaterialEmpty)" in render and "HasShockwaveLightMarker" in render and
+          "float4(shockwaveColor * shockwaveAlpha, shockwaveAlpha)" in render and
+          "return float4(straightColor.rgb * straightColor.a, straightColor.a);" in render,
+          "plugin-owned D3D render pass must output simulation cells plus the premultiplied empty-cell shock front")
     check("CreateDeviceContextState<ID3D11Device1>" in gpu and
           "CreateDeviceContextState<ID3D11DeviceContext1>" not in gpu and
           gpu.count("EnterIsolatedContext()") >= 4 and
@@ -341,6 +355,7 @@ def test_gpu_xpbd_contract() -> None:
     integrate = (SHADERS / "SandRigidIntegrate.hlsl").read_text(encoding="utf-8")
     solve = (SHADERS / "SandRigidSolve.hlsl").read_text(encoding="utf-8")
     grid = (SHADERS / "SandRigidGrid.hlsl").read_text(encoding="utf-8")
+    components = (SHADERS / "SandRigidComponents.hlsl").read_text(encoding="utf-8")
     react = (SHADERS / "SandRigidReact.hlsl").read_text(encoding="utf-8")
     step = (SHADERS / "SandStep.hlsl").read_text(encoding="utf-8")
     render = (SHADERS / "SandRenderPS.hlsl").read_text(encoding="utf-8")
@@ -351,13 +366,17 @@ def test_gpu_xpbd_contract() -> None:
     check("return IsFixed(material);" in behavior, "fixed materials must be owned by GPU solid physics")
     check("float4 RigidProperties" in behavior and "float2 FluidProperties" in behavior,
           "solid/fluid parameters must use packed property lookups")
+    check("uint RigidFractureSpanCells(uint material)" in behavior and
+          "MaterialCobaltGlass" in behavior and "MaterialMetal" in behavior and
+          "RigidFractureSpanCells(material)" in integrate and "PhysicsChunkSpan" not in integrate,
+          "controller fracture scale must be material-specific and independent from explosion radius")
     check("float RigidPairComplianceScale" in behavior and "float RigidPairBreakStrain" in behavior,
-          "mixed-material bond helpers are missing")
-    check("sameMaterial ? baseStrain : baseStrain * 0.70f" in behavior,
-          "mixed-material interfaces must fracture before homogeneous bonds")
+          "solid bond property helpers are missing")
     for token in ("SolidGravity", "SolidStiffness", "SolidBreakStrength", "SolidSolverIterations"):
         check(f"public Animation {token}" in effect, f"missing solid-physics UI parameter: {token}")
         check(f"{token}:" in processor, f"processor does not forward solid-physics UI parameter: {token}")
+    check("SolidChunkSize" not in effect and "SolidChunkSize" not in processor,
+          "fixed macro-size UI must be removed when connected components define body size")
     check('AnimationSlider("F0", "回", 1, SandSimulationSettings.MaximumIterationsPerFrame)' in effect,
           "speed slider must expose the same maximum used by runtime clamping")
     check('AnimationSlider("F0", "回", 0, SandSimulationSettings.MaximumWarmupIterations)' in effect,
@@ -366,6 +385,11 @@ def test_gpu_xpbd_contract() -> None:
           "solid solver slider must expose the same maximum used by runtime clamping")
     check("PhysicsGravity = 120.0f * parameters.SolidGravity" in gpu, "gravity UI must reach GPU constants")
     check("parameters.SolidStiffness" in gpu and "PhysicsCompliance" in gpu, "stiffness UI must reach XPBD compliance")
+    check("parameters.SolidStiffness > 0.0f" in gpu and ": 1.0f" in gpu and
+          "0.25f" not in gpu[gpu.find("PhysicsCompliance ="):gpu.find("PhysicsDamping =")],
+          "0 percent stiffness must not be silently raised to 25 percent")
+    check("1.0e-4f" in integrate and "0.04f" not in integrate[integrate.find("fractureThreshold"):integrate.find("if (impulseMagnitude > fractureThreshold)")],
+          "0 percent break strength must not retain the old large fracture floor")
     check("PhysicsSolverIterations = (uint)parameters.SolidSolverIterations" in gpu, "solver-iteration UI must reach GPU")
     check("IsRigidPhysicsMaterial(material)" in initialize, "cellular initializer must exclude rigid-owned cells")
     check("ExistingRigidOccupancy : register(t3)" in initialize and "occupiedByOtherRigid" in initialize,
@@ -397,12 +421,15 @@ def test_gpu_xpbd_contract() -> None:
           "properties11 = RigidProperties(material11)" in solve and
           "1.0f / max(propertiesA.x" in solve and "1.0f / max(propertiesB.x" in solve,
           "per-material density/inverse mass must load properties once per active 2x2 cell and reuse them across bonds")
-    check("if (active00 && active10)" in solve and "if (active10 && active01)" in solve,
-          "solver must avoid bond work when either endpoint is inactive")
-    check("RigidPairComplianceScale(propertiesA, propertiesB, sameMaterial)" in solve,
+    check("if (active00 && active10 && sameBody00_10)" in solve and "if (active10 && active01 && sameBody10_01)" in solve,
+          "solver must avoid bond work across inactive or separate-body endpoints")
+    check("RigidPairComplianceScale(propertiesA, propertiesB, sameCohesiveRegion)" in solve,
           "per-material XPBD compliance is missing")
-    check("RigidPairBreakStrain(propertiesA, propertiesB, sameMaterial)" in solve and "tensileStrain" in solve,
+    check("RigidPairBreakStrain(propertiesA, propertiesB, sameCohesiveRegion)" in solve and "tensileStrain" in solve,
           "per-material tensile fracture is missing")
+    check("RigidBodyLabel : register(t1)" in solve and "sameBody00_10" in solve and
+          "active00 && active10 && sameBody00_10" in solve and "IsSameRigidMacro" not in solve,
+          "XPBD bonds must exist only inside one same-material connected body")
     check("* PhysicsBreakStrength" in solve, "global fracture-strength UI multiplier is missing")
     check("solveHorizontal" in solve and "solveVertical" in solve,
           "axial constraints must not be duplicated across shifted parity phases")
@@ -413,9 +440,25 @@ def test_gpu_xpbd_contract() -> None:
     check("(PhysicsPhase >> 1u) & 1u" in solve and "phase < 4u" in gpu,
           "all four 2x2 parity phases must be solved for full 8-neighbour coverage")
     check("InterlockedMin" in grid, "deterministic GPU grid ownership is missing")
+    check("RigidBodyLabel : register(t3)" in grid and "RigidBodyContact : register(u2)" in grid and
+          "bodyOwner = RigidBodyLabel.Load" in grid and "PhysicsPass == 3u" in grid and
+          "RigidBodyContact[bodyCell]" in grid and "InterlockedOr" in grid and
+          "StopRigidAxes" in grid and "RigidContactHorizontal" in grid and "RigidContactVertical" in grid,
+          "rigid collision must propagate axis-specific external contact across one connected body")
+    check("CSSetUnorderedAccessView(2, rigidBodyContactUav)" in gpu and "PhysicsPass = 3u" in gpu and
+          "CSSetShaderResource(3, rigidBodyLabelSrv)" in gpu,
+          "host must execute the connected-body contact resolve pass")
     check("IsRigidPhysicsMaterial(material)" in grid, "grid rasterization must ignore non-rigid transition states")
-    check("IsPowder(cellularMaterial) || IsFixed(cellularMaterial)" in grid,
-          "powder and CA-created solids must support rigid bodies")
+    check("return IsFixedCell(target) || IsOccupiedByOtherBody(id, target);" in grid and
+          "IsPowder" not in extract_hlsl_function(grid, "bool HasExternalObstacle("),
+          "loose powder must not erase body momentum while fixed CA solids still block rigid bodies")
+    check("RigidBodyLabel : register(u0)" in components and "RigidMeta : register(t0)" in components and
+          "RigidLambda : register(t1)" in components and "InterlockedMin(RigidBodyLabel" in components and
+          "GetMaterial(RigidMeta.Load(int3(second, 0))) != material" in components and
+          "id + uint2(1u, 0u)" in components and "id + uint2(0u, 1u)" in components,
+          "rigid bodies must be GPU-labelled four-neighbour same-material connected components")
+    check('ShaderBytecode.Load("SandRigidComponents")' in gpu and "BuildRigidComponents(ref constants)" in gpu,
+          "host must build connected rigid-body labels without CPU readback")
     check("EmptyRigidOwner = 0xffffffffu" in grid and "EmptyRigidOwner = 0xffffffffu" in step,
           "rigid occupancy sentinel mismatch")
     check("RigidOccupancy : register(t2)" in step, "cellular solver must consume rigid occupancy")
@@ -455,6 +498,7 @@ def test_gpu_xpbd_contract() -> None:
         ("rigid integrate", integrate),
         ("rigid solve", solve),
         ("rigid grid", grid),
+        ("rigid components", components),
         ("rigid react", react),
     ):
         check(text.count("{") == text.count("}"), f"{name}: unbalanced braces")
@@ -495,6 +539,8 @@ def test_explosion_and_lighting_contract() -> None:
           "CA motion must consume the GPU pressure field")
     check("ExplosionPressure : register(t2)" in integrate and "ExplosionImpulseAt" in integrate,
           "XPBD integration must consume the same pressure field")
+    check("frontMask * (0.55f + strengthScale * 0.65f) * densityScale" in integrate,
+          "controller explosion impulses must scale with rigid material density")
     check("BrokenRigidBondMarker" in integrate and "fractureThreshold" in integrate,
           "explosion impulse must be able to fracture XPBD bonds")
     check("PreviousPressure : register(t0)" in explosion and "ExplosionFalloff" in explosion and "ExplosionDecay" in explosion,
@@ -534,17 +580,25 @@ def test_explosion_and_lighting_contract() -> None:
           "_item.ExplosionX.AddToEachValues(args.Delta.X)" in processor and
           "_item.ExplosionY.AddToEachValues(args.Delta.Y)" in processor,
           "YMM4 preview controller must drag the item-local manual explosion center")
-    check("parameters.ExplosionRadius * parameters.ParticleSize" in processor and
-          "_item.ExplosionRadius.AddToEachValues(args.Delta.X / parameters.ParticleSize)" in processor and
+    check("var radiusPixels = (float)parameters.ExplosionRadius" in processor and
+          "_item.ExplosionRadius.AddToEachValues(args.Delta.X)" in processor and
           "VideoControllerPointConnection.Line" in processor,
-          "YMM4 preview controller must expose a connected radius handle in simulation-cell units")
+          "YMM4 preview controller must expose a connected radius handle in pixel units")
+    check("(parameters.ExplosionRadius + parameters.ParticleSize - 1) / parameters.ParticleSize" in processor,
+          "pixel explosion radius must convert to cell radius only at the GPU boundary")
     check("SandExplosionTriggerPolicy.ShouldTrigger(" in processor,
           "manual explosion trigger timing must use the deterministic trigger policy")
     check("gpuParameters with { ManualExplosion = false }" in processor and
           processor.count("Step(in warmupGpuParameters, parameters.WarmupIterations)") == 3,
           "warmup must never seed the manual explosion before the displayed frame step")
-    check("ManualExplosionEnabled" in core and "manualExplosion" in explosion,
-          "manual explosion seed must reach the GPU pressure shader")
+    check("ManualExplosionEnabled" in core and "manualExplosion" not in explosion and
+          "eventSeed = explosion ? 1.0f : 0.0f" in explosion,
+          "controller explosions must not seed the slow CA pressure field")
+    check("ManualExplosionPropagationFrames = 6u" in gpu and
+          "PrepareManualExplosionWaveForStep(ref constants, i == 0)" in gpu and
+          "Math.Min(GetManualExplosionWaveAdvance(constants.ExplosionRadius), visibleRadius)" in gpu and
+          "GetManualExplosionWaveAdvance" in gpu,
+          "controller shockwave must advance once per output frame independently of simulation iterations")
     check("ExplosionStrength == other.ExplosionStrength" in processor and "ExplosionRadius == other.ExplosionRadius" in processor,
           "explosion physics changes must reset/rebuild timeline state")
     check("_parameters.LightingStrength != parameters.LightingStrength" in processor,
@@ -817,7 +871,7 @@ def test_gpu_memory_guard() -> None:
     translations = read_translations()
     check("MaximumSimulationStateBytes = 318_767_104" in settings,
           "GPU simulation state budget must remain capped at ~304 MiB")
-    for name, value in (("CellularStateBytesPerCell", 16), ("RigidStateBytesPerCell", 44),
+    for name, value in (("CellularStateBytesPerCell", 16), ("RigidStateBytesPerCell", 52),
                         ("ExplosionStateBytesPerCell", 8), ("LightingStateBytesPerCell", 8)):
         check(f"{name} = {value}" in settings, f"missing per-feature memory cost: {name}")
     check("GetSimulationStateBytesPerCell" in settings and
@@ -844,7 +898,6 @@ def test_parameter_range_contract() -> None:
         "PositiveAnimationMinimum = 0.0": "non-negative animation minimum",
         "SignedAnimationMinimum = -100_000.0": "signed animation minimum",
         "AnimationMaximum = 100_000.0": "shared animation maximum",
-        "MaximumNormalizedPercentMultiplier = 1_000.0f": "normalized percent multiplier maximum",
     }
     for token, label in expected_constants.items():
         check(token in settings, f"missing VTuberKit-compatible {label}")
@@ -870,13 +923,19 @@ def test_parameter_range_contract() -> None:
         'AnimationSlider("F1", "%", SandSimulationSettings.PercentMultiplierSliderMinimum, '
         "SandSimulationSettings.PercentMultiplierSliderMaximum)"
     )
-    check(effect.count(percent_slider_contract) == 4,
-          "reaction, gravity, explosion, and lighting must share the 0..400 percent initial range")
-    check(effect.count("25, SandSimulationSettings.PercentMultiplierSliderMaximum") == 2,
-          "stiffness and break strength must retain their safe minimum and 400 percent initial maximum")
+    check(effect.count(percent_slider_contract) == 6,
+          "all six multiplier controls must share the 0..400 percent initial range")
+    check("25, SandSimulationSettings.PercentMultiplierSliderMaximum" not in effect,
+          "stiffness and break strength must expose a real 0 percent value instead of a hidden 25 percent floor")
     processor = (PRODUCT / "SandSimulationEffectProcessor.cs").read_text(encoding="utf-8")
-    check(processor.count("SandSimulationSettings.MaximumNormalizedPercentMultiplier") == 6,
-          "all six percentage multipliers must normalize the 100000 percent maximum for GPU use")
+    check(processor.count("ClampFiniteAtLeast(") >= 6 and
+          "MaximumNormalizedPercentMultiplier" not in processor,
+          "percentage multipliers must keep their semantic minimum without a hidden runtime upper clamp")
+    check("ExplosionRadius: RoundAtLeast(" in processor and "MaximumExplosionRadius" not in processor,
+          "explosion radius must preserve typed pixel values without a hidden runtime upper clamp")
+    check("ExplosionX: FiniteOrZero(" in processor and "ExplosionY: FiniteOrZero(" in processor and
+          "MaximumCanvasSize" not in processor[processor.find("ExplosionX:"):processor.find("ExplosionTriggerFrame:")],
+          "explosion center must remain signed/off-screen instead of clamping to the canvas edge")
 
 def test_ymm4_ui_terminology_contract() -> None:
     effect = (PRODUCT / "SandSimulationEffect.cs").read_text(encoding="utf-8")
@@ -886,9 +945,9 @@ def test_ymm4_ui_terminology_contract() -> None:
     required_japanese = {
         "Group_Basic": "基本",
         "Group_Explosion": "爆発",
-        "Group_Lighting": "ライト",
-        "ScreenSize_Name": "スクリーンサイズ",
-        "ParticleSize_Name": "粒のサイズ",
+        "Group_Lighting": "照明",
+        "ScreenSize_Name": "画面サイズ",
+        "ParticleSize_Name": "粒サイズ",
         "Iterations_Name": "更新回数",
         "Warmup_Name": "初期更新回数",
         "ReactionStrength_Name": "反応の強さ",
@@ -899,9 +958,9 @@ def test_ymm4_ui_terminology_contract() -> None:
         "ExplosionY_Name": "中心Y",
         "ExplosionStrength_Name": "強さ",
         "ExplosionRadius_Name": "半径",
-        "LightingStrength_Name": "強さ",
+        "LightingStrength_Name": "光の強さ",
         "LightingRadius_Name": "半径",
-        "AmbientLight_Name": "明るさ",
+        "AmbientLight_Name": "環境光",
         "AlphaThreshold_Name": "不透明度の閾値",
         "LuminanceThreshold_Name": "輝度の閾値",
     }
@@ -924,9 +983,9 @@ def test_ymm4_ui_terminology_contract() -> None:
           "alpha extraction labels must use YMM4's user-facing opacity terminology")
     check("Order =" not in effect,
           "effect parameter UI order must follow source declaration order without Display.Order")
-    check(re.search(r"public bool IsScreenSize[\s\S]*?private bool _isScreenSize = true;", effect) is not None and
+    check(re.search(r"public bool IsScreenSize[\s\S]*?private bool _isScreenSize;", effect) is not None and
           "nameof(Translate.ScreenSize_Name)" in effect and "[ToggleSlider]" in effect,
-          "screen-size rendering must be a localized toggle that defaults on")
+          "screen-size rendering must be a localized toggle that defaults off")
     processor = (PRODUCT / "SandSimulationEffectProcessor.cs").read_text(encoding="utf-8")
     check("effectDescription.ScreenSize.Width" in processor and
           "effectDescription.ScreenSize.Height" in processor and
@@ -951,14 +1010,15 @@ def test_release_and_localization_contract() -> None:
     check("<Version>" not in csproj,
           "project file must not duplicate the release version")
     check("bypassMinimumLevel: true" in plugin_log and
+          "Environment.GetEnvironmentVariable(LogLevelEnvironmentVariable)" in plugin_log and
           "#else\n        return PluginLogLevel.Error;\n#endif" in plugin_log,
-          "Release logging must always retain one startup record and otherwise keep errors only")
+          "Release logging must keep errors by default while allowing explicit support/performance opt-in")
     check("YMM4SandSimVersion" in workflow and "Tag/version mismatch" in workflow,
           "release workflow must read and validate the shared version")
     check("submodules: recursive" in workflow,
           "release checkout must initialize the localization generator submodule")
-    check(".\\scripts\\dev.ps1 test" in workflow and ".\\scripts\\dev.ps1 publish" in workflow,
-          "release workflow must test and publish through the unified development script")
+    check(".\\scripts\\dev.ps1 test" not in workflow and ".\\scripts\\dev.ps1 publish" in workflow,
+          "release workflow must package through the unified script without rerunning local-only tests")
     check('$baseName = "YMM4SandSim-v$version"' in package_script and
           "YMM4SandSim/YMM4SandSim.dll" in package_script and
           "CreateFromDirectory" in package_script,
@@ -999,6 +1059,32 @@ def test_local_build_configuration_contract() -> None:
           "repository build must not depend on a machine-specific MSBuild.exe location")
     check('"-p:FxcPath=$fxc"' in build_script,
           "resolved FXC path must be forwarded to the plugin build")
+    check('"-p:YMM4SandSimShaderOptimization=$Optimization"' in build_script and
+          build_script.count('Invoke-PluginBuild -Deploy -Optimization Release') >= 2,
+          "normal and publish builds must use final shader optimization")
+    check("$null = $process.Handle" in build_script,
+          "Windows PowerShell must retain the FXC process handle so ExitCode is available")
+    check('-p:SkipShaderCompilation=true' in build_script,
+          "xUnit test builds must skip shader compilation")
+
+    test_project = (ROOT / "YMM4SandSim.Tests" / "YMM4SandSim.Tests.csproj").read_text(encoding="utf-8")
+    plugin_project = (PRODUCT / "YMM4SandSim.csproj").read_text(encoding="utf-8")
+    check("SkipShaderCompilation" in plugin_project and
+          "Condition=\"'$(SkipShaderCompilation)' != 'true'\"" in plugin_project,
+          "plugin project must omit shader generation and embedding only for C#-only tests")
+    check('Compile Remove="ShaderBytecodeTests.cs"' in test_project and
+          "'$(SkipShaderCompilation)' == 'true'" in test_project,
+          "bytecode-dependent tests must be excluded when shaders are intentionally absent")
+    lint_function = re.search(r"function Invoke-Lint\s*\{(.*?)\r?\n\}", build_script, re.DOTALL)
+    check(lint_function is not None and "dotnet build" not in lint_function.group(1),
+          "lint must remain a non-build style/analyzer check")
+
+    public_ci = (ROOT / ".github" / "workflows" / "public-ci.yml").read_text(encoding="utf-8")
+    check(".\\scripts\\dev.ps1 fmt -Verify" in public_ci and ".\\scripts\\dev.ps1 lint" in public_ci,
+          "public CI must run formatting and lint checks")
+    check("dotnet build" not in public_ci and ".\\scripts\\dev.ps1 test" not in public_ci and
+          ".\\scripts\\dev.ps1 publish" not in public_ci,
+          "public CI must not build, test, compile shaders, or publish")
 
 
 def test_optimization_contract() -> None:
@@ -1031,6 +1117,18 @@ def test_optimization_contract() -> None:
           "CreatePhysicsTexture(Format.R32_Float, _stateWidth, _stateHeight)" in gpu and
           "CreatePhysicsTexture(Format.R32_UInt, _stateWidth, _stateHeight)" in gpu,
           "optional resource helpers must keep the established D3D11-compatible formats")
+    components_start = gpu.find("private void BuildRigidComponents(")
+    components_end = gpu.find("private void BuildRigidOccupancy(", components_start)
+    check(components_start >= 0 and components_end > components_start, "BuildRigidComponents method missing")
+    components_body = gpu[components_start:components_end]
+    check(components_body.count("CSSetShader(_rigidComponentsShader)") == 1 and
+          components_body.count("CSSetShaderResource(0, rigidMetaSrv)") == 1 and
+          components_body.count("CSSetUnorderedAccessView(0, rigidBodyLabelUav)") == 1 and
+          components_body.count("UnbindComputeViews()") == 1,
+          "connected-component rounds must keep invariant D3D11 state bound instead of rebinding every dispatch")
+    check("DiagnosticSampleWindow = 120" in gpu and "avgDispatches=" in gpu and
+          "CPU submit time is not GPU execution time" in gpu and "_context.Dispatch(" in gpu,
+          "performance diagnostics must report dispatch counts/CPU submit time without pretending to measure GPU time")
     start = gpu.find("private void BuildLighting(")
     end = gpu.find("private void ReactRigid(", start)
     check(start >= 0 and end > start, "BuildLighting method missing")
@@ -1041,6 +1139,25 @@ def test_optimization_contract() -> None:
     check("CSSetShaderResource(1" not in loop and "CSSetShaderResource(2" not in loop and "CSSetShaderResource(3" not in loop,
           "host must not bind material/occupancy SRVs during repeated light propagation passes")
 
+
+
+def test_documentation_contract() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    design = (ROOT / "docs" / "GPU_SOLID_PHYSICS.md").read_text(encoding="utf-8")
+    for heading in ("## インストール方法", "## 使い方", "## 動作環境", "## 開発者向け", "## ライセンス", "## 謝辞"):
+        check(heading in readme, f"README missing user/developer structure: {heading}")
+    check(readme.index("## 使い方") < readme.index("## 開発者向け"),
+          "README must present user documentation before developer internals")
+    check("主な変更" not in readme and "アップデート" not in readme,
+          "initial v1.0.0 README must not contain an update-history section")
+    check("GPU Connected Components" in design and "異素材間にはXPBD bondを張りません" in design and
+          "timestamp query" in design and "84 byte/cell" in design,
+          "GPU solid-physics design must match connected bodies, material separation, profiling, and memory layout")
+    check("YMM4SANDSIM_LOG_LEVEL=Information" in design and "cpuSubmitMs" in design and
+          "GPU実行時間ではありません" in design,
+          "performance diagnostics belong in the technical design document")
+    for stale in ("XPBDは44 byte/cell", "全機能有効時は76 byte/cell", "約150.3 MiB"):
+        check(stale not in readme and stale not in design, f"stale documentation remains: {stale}")
 
 def main() -> None:
     entries = test_manifest()
@@ -1062,6 +1179,7 @@ def main() -> None:
     test_gpu_xpbd_contract()
     test_explosion_and_lighting_contract()
     test_optimization_contract()
+    test_documentation_contract()
     test_xpbd_phase_schedule()
     test_ca_odd_boundary_schedule()
     print("YMM4-SandSim static contract tests passed.")

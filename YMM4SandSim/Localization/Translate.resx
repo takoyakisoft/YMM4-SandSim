@@ -65,20 +65,20 @@
 <data name="Group_Simulation" xml:space="preserve"><value>シミュレーション</value></data>
 <data name="Group_SolidPhysics" xml:space="preserve"><value>固体物理</value></data>
 <data name="Group_Explosion" xml:space="preserve"><value>爆発</value></data>
-<data name="Group_Lighting" xml:space="preserve"><value>ライト</value></data>
+<data name="Group_Lighting" xml:space="preserve"><value>照明</value></data>
 <data name="Group_Extraction" xml:space="preserve"><value>抽出</value></data>
-<data name="ScreenSize_Name" xml:space="preserve"><value>スクリーンサイズ</value></data>
+<data name="ScreenSize_Name" xml:space="preserve"><value>画面サイズ</value></data>
 <data name="ScreenSize_Desc" xml:space="preserve"><value>画面サイズに合わせてシミュレーションします。</value></data>
 <data name="SourceMode_Name" xml:space="preserve"><value>入力モード</value></data>
-<data name="SourceMode_Desc" xml:space="preserve"><value>初期フレームのみ素材化、空セルへの継続追加、選択位置への毎フレーム再配置を選びます。XPBD固定素材は1入力セル1スロットのため、継続追加では同じソースセルから重複生成しません。</value></data>
-<data name="ParticleSize_Name" xml:space="preserve"><value>粒のサイズ</value></data>
-<data name="ParticleSize_Desc" xml:space="preserve"><value>1セルに対応するピクセル数を指定します。大きいほど高速でGPUメモリを節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・ライト有効時は約150 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。</value></data>
-<data name="MaterialAssignment_Name" xml:space="preserve"><value>素材の割り当て</value></data>
-<data name="MaterialAssignment_Desc" xml:space="preserve"><value>入力色を55色へ分類し、各色に1種類だけ割り当てた物理素材へ変換するか、単一素材へ変換します。</value></data>
+<data name="SourceMode_Desc" xml:space="preserve"><value>初期フレームのみ素材化、空きセルへの継続追加、選択位置への毎フレーム再配置を選びます。XPBD固定素材は1入力セル1スロットのため、継続追加では同じ入力セルから重複生成しません。</value></data>
+<data name="ParticleSize_Name" xml:space="preserve"><value>粒サイズ</value></data>
+<data name="ParticleSize_Desc" xml:space="preserve"><value>1セルが表すピクセル数を指定します。値が大きいほど高速になり、GPUメモリも節約できます。4 pxを推奨します。1080p/1 pxではCAのみ約32 MiB、XPBD・爆発・照明有効時は約166 MiBです。状態予算は約304 MiBで、有効な機能に応じて使用可能なセル数を調整します。</value></data>
+<data name="MaterialAssignment_Name" xml:space="preserve"><value>素材割り当て</value></data>
+<data name="MaterialAssignment_Desc" xml:space="preserve"><value>入力色を55色に分類し、各色に対応する物理素材に変換するか、すべてを単一素材に変換します。</value></data>
 <data name="SingleMaterial_Name" xml:space="preserve"><value>単一素材</value></data>
 <data name="SingleMaterial_Desc" xml:space="preserve"><value>「単一素材」を選んだ場合に使用する素材です。</value></data>
 <data name="ColorMode_Name" xml:space="preserve"><value>表示色</value></data>
-<data name="ColorMode_Desc" xml:space="preserve"><value>入力画像の色を保持するか、分類に使用した素材色で表示します。</value></data>
+<data name="ColorMode_Desc" xml:space="preserve"><value>入力画像の色を保持するか、分類した素材の色で表示します。</value></data>
 <data name="Iterations_Name" xml:space="preserve"><value>更新回数</value></data>
 <data name="Iterations_Desc" xml:space="preserve"><value>1フレームあたりの更新回数を指定します。増やすほどシミュレーションが速く進み、GPU負荷も増えます。</value></data>
 <data name="Warmup_Name" xml:space="preserve"><value>初期更新回数</value></data>
@@ -88,37 +88,37 @@
 <data name="ReactionStrength_Name" xml:space="preserve"><value>反応の強さ</value></data>
 <data name="ReactionStrength_Desc" xml:space="preserve"><value>燃焼、蒸発、溶解、腐食、発煙などの反応の強さを指定します。100%が標準、0%で素材間の反応を停止します。</value></data>
 <data name="SolidMode_Name" xml:space="preserve"><value>方式</value></data>
-<data name="SolidMode_Desc" xml:space="preserve"><value>固定素材をGPU XPBD格子へ移し、素材別の質量・剛性・破断を使って落下・変形・衝突させます。</value></data>
+<data name="SolidMode_Desc" xml:space="preserve"><value>固定素材をGPU XPBD格子に移し、素材ごとの質量・剛性・破断特性を使って落下・変形・衝突させます。</value></data>
 <data name="Gravity_Name" xml:space="preserve"><value>重力</value></data>
 <data name="Gravity_Desc" xml:space="preserve"><value>XPBD固体に加える重力を指定します。100%が標準です。液体中では素材の密度に応じて浮力も加わります。</value></data>
 <data name="Stiffness_Name" xml:space="preserve"><value>剛性</value></data>
-<data name="Stiffness_Desc" xml:space="preserve"><value>素材固有の硬さを指定します。100%が標準で、大きいほど形状を保ちやすくなります。</value></data>
+<data name="Stiffness_Desc" xml:space="preserve"><value>素材固有の硬さを指定します。100%が標準で、0%では拘束がほぼ働かず、大きいほど形状を保ちやすくなります。</value></data>
 <data name="BreakStrength_Name" xml:space="preserve"><value>破断の強さ</value></data>
-<data name="BreakStrength_Desc" xml:space="preserve"><value>素材固有の壊れにくさを指定します。100%が標準で、大きいほど割れたりちぎれたりしにくくなります。</value></data>
+<data name="BreakStrength_Desc" xml:space="preserve"><value>素材固有の壊れにくさを指定します。100%が標準で、0%では非常に壊れやすく、大きいほど割れたりちぎれたりしにくくなります。</value></data>
 <data name="SolverIterations_Name" xml:space="preserve"><value>反復回数</value></data>
 <data name="SolverIterations_Desc" xml:space="preserve"><value>XPBDの計算を繰り返す回数を指定します。増やすほど硬い素材が安定し、GPU負荷も増えます。</value></data>
 <data name="ExplosionController_Name" xml:space="preserve"><value>制御点</value></data>
 <data name="ExplosionController_Desc" xml:space="preserve"><value>プレビューに爆発の中心と半径の制御点を表示します。中心の制御点で位置、右側の制御点で半径を変更できます。</value></data>
 <data name="ExplosionX_Name" xml:space="preserve"><value>中心X</value></data>
-<data name="ExplosionX_Desc" xml:space="preserve"><value>アイテムの中心を基準とした爆発の中心座標Xを指定します。</value></data>
+<data name="ExplosionX_Desc" xml:space="preserve"><value>アイテムの中心を基準とした爆発中心のX座標を指定します。</value></data>
 <data name="ExplosionY_Name" xml:space="preserve"><value>中心Y</value></data>
-<data name="ExplosionY_Desc" xml:space="preserve"><value>アイテムの中心を基準とした爆発の中心座標Yを指定します。</value></data>
+<data name="ExplosionY_Desc" xml:space="preserve"><value>アイテムの中心を基準とした爆発中心のY座標を指定します。</value></data>
 <data name="ExplosionFrame_Name" xml:space="preserve"><value>発火フレーム</value></data>
 <data name="ExplosionFrame_Desc" xml:space="preserve"><value>エフェクトの開始から何フレーム目に爆発させるかを指定します。同じフレームを再評価しても重複して爆発しません。</value></data>
 <data name="ExplosionStrength_Name" xml:space="preserve"><value>強さ</value></data>
 <data name="ExplosionStrength_Desc" xml:space="preserve"><value>爆発による圧力波の強さを指定します。100%が標準です。0%で圧力波、衝撃、爆発光を無効化します。</value></data>
 <data name="ExplosionRadius_Name" xml:space="preserve"><value>半径</value></data>
-<data name="ExplosionRadius_Desc" xml:space="preserve"><value>圧力波が広がる目安の半径をセル単位で指定します。圧力は更新ごとに伝わり、衝撃波として広がります。</value></data>
-<data name="LightingStrength_Name" xml:space="preserve"><value>強さ</value></data>
-<data name="LightingStrength_Desc" xml:space="preserve"><value>火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%でライトを無効化します。</value></data>
+<data name="ExplosionRadius_Desc" xml:space="preserve"><value>爆発の影響半径をpx単位で指定します。粒サイズに関係なく画面上の大きさを指定でき、衝撃波は爆心から円形に広がります。</value></data>
+<data name="LightingStrength_Name" xml:space="preserve"><value>光の強さ</value></data>
+<data name="LightingStrength_Desc" xml:space="preserve"><value>火、残り火、溶岩、シーランタン、爆発による光の強さを指定します。100%が標準、0%で照明を無効化します。</value></data>
 <data name="LightingRadius_Name" xml:space="preserve"><value>半径</value></data>
 <data name="LightingRadius_Desc" xml:space="preserve"><value>光が届く半径をセル単位で指定します。大きいほど広く照らし、GPU負荷も増えます。</value></data>
-<data name="AmbientLight_Name" xml:space="preserve"><value>明るさ</value></data>
-<data name="AmbientLight_Desc" xml:space="preserve"><value>ライトが当たっていない部分の明るさを指定します。100%で元の明るさを維持し、小さくすると暗い部分が増えます。</value></data>
+<data name="AmbientLight_Name" xml:space="preserve"><value>環境光</value></data>
+<data name="AmbientLight_Desc" xml:space="preserve"><value>照明が届いていない部分の明るさを指定します。100%で元の明るさを維持し、小さくすると暗い部分が増えます。</value></data>
 <data name="ShadowStrength_Name" xml:space="preserve"><value>影の強さ</value></data>
 <data name="ShadowStrength_Desc" xml:space="preserve"><value>素材が光を遮る強さを指定します。0%で光が素材を透過し、100%で素材固有の影を最大にします。</value></data>
 <data name="MaskMode_Name" xml:space="preserve"><value>抽出方法</value></data>
-<data name="MaskMode_Desc" xml:space="preserve"><value>素材へ変換する画素の判定方法です。</value></data>
+<data name="MaskMode_Desc" xml:space="preserve"><value>素材に変換する画素の判定方法です。</value></data>
 <data name="AlphaThreshold_Name" xml:space="preserve"><value>不透明度の閾値</value></data>
 <data name="AlphaThreshold_Desc" xml:space="preserve"><value>不透明度がこの値以上のピクセルを素材にします。</value></data>
 <data name="LuminanceThreshold_Name" xml:space="preserve"><value>輝度の閾値</value></data>
@@ -136,7 +136,7 @@
 <data name="SolidMode_Disabled" xml:space="preserve"><value>無効（固定素材は静止）</value></data>
 <data name="SolidMode_Xpbd" xml:space="preserve"><value>GPU XPBD（変形・破断・浮力・反応）</value></data>
 <data name="SourceMode_Snapshot" xml:space="preserve"><value>初期フレームを素材化</value></data>
-<data name="SourceMode_Continuous" xml:space="preserve"><value>空セルに毎フレーム追加</value></data>
+<data name="SourceMode_Continuous" xml:space="preserve"><value>空きセルに毎フレーム追加</value></data>
 <data name="SourceMode_Stamp" xml:space="preserve"><value>選択位置へ毎フレーム再配置</value></data>
 <data name="MaskMode_Alpha" xml:space="preserve"><value>不透明度</value></data>
 <data name="MaskMode_Luminance" xml:space="preserve"><value>輝度</value></data>
@@ -145,7 +145,7 @@
 <data name="Material_Water" xml:space="preserve"><value>水（#0078f8）</value></data>
 <data name="Material_Salt" xml:space="preserve"><value>塩（#f8f8f8）</value></data>
 <data name="Material_Wood" xml:space="preserve"><value>木（#881400）</value></data>
-<data name="Material_Fire" xml:space="preserve"><value>火（#e45c10）</value></data>
+<data name="Material_Fire" xml:space="preserve"><value>火（#f82004）</value></data>
 <data name="Material_Smoke" xml:space="preserve"><value>煙（#787878）</value></data>
 <data name="Material_Ember" xml:space="preserve"><value>残り火（反応・追加素材）</value></data>
 <data name="Material_Steam" xml:space="preserve"><value>水蒸気（#a4e4fc）</value></data>

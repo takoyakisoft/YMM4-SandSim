@@ -4,6 +4,7 @@
 **/obj/
 **/*.user
 YMM4SandSim/Shaders/*.cso
+YMM4SandSim/Shaders/*.cso.mode
 artifacts/
 YMM4/
 YMM4Download/

@@ -60,5 +60,7 @@
   </resheader>
 <data name="CurrentCulture" xml:space="preserve"><value>zh-cn</value></data>
 <data name="SolidMode_Desc" xml:space="preserve"><value>stiffness</value></data>
+<data name="Stiffness_Desc" xml:space="preserve"><value>and higher values preserve shape more strongly.</value></data>
+<data name="BreakStrength_Desc" xml:space="preserve"><value>and higher values make breaking and tearing less likely.</value></data>
 <data name="ExplosionStrength_Desc" xml:space="preserve"><value>impact and explosion light.</value></data>
 </root>

@@ -9,7 +9,7 @@ float4 MaterialColor(uint material)
     if (material == MaterialWater) return float4(0.000000000f, 0.470588235f, 0.972549020f, 1.0f); // #0078f8
     if (material == MaterialSalt) return float4(0.972549020f, 0.972549020f, 0.972549020f, 1.0f); // #f8f8f8
     if (material == MaterialWood) return float4(0.533333333f, 0.078431373f, 0.000000000f, 1.0f); // #881400
-    if (material == MaterialFire) return float4(0.894117647f, 0.360784314f, 0.062745098f, 1.0f); // #e45c10
+    if (material == MaterialFire) return float4(0.972549020f, 0.125490196f, 0.015686275f, 1.0f); // #f82004
     if (material == MaterialSmoke) return float4(0.470588235f, 0.470588235f, 0.470588235f, 1.0f); // #787878
     if (material == MaterialSteam) return float4(0.643137255f, 0.894117647f, 0.988235294f, 1.0f); // #a4e4fc
     if (material == MaterialOil) return float4(0.000000000f, 0.250980392f, 0.345098039f, 1.0f); // #004058
@@ -140,7 +140,7 @@ uint ClosestMaterialFromColor(float3 color)
     ConsiderPaletteMaterial(lab, float3(0.464881137f, 0.157890546f, 0.093263173f), MaterialRust, bestDistance, bestMaterial); // #a81000
     ConsiderPaletteMaterial(lab, float3(0.916638252f, 0.007694661f, 0.077664369f), MaterialCalcite, bestDistance, bestMaterial); // #fce0a8
     ConsiderPaletteMaterial(lab, float3(0.783280718f, 0.070696524f, 0.133171538f), MaterialAmber, bestDistance, bestMaterial); // #fca044
-    ConsiderPaletteMaterial(lab, float3(0.641878979f, 0.135367768f, 0.125942164f), MaterialFire, bestDistance, bestMaterial); // #e45c10
+    ConsiderPaletteMaterial(lab, float3(0.623448953f, 0.210266017f, 0.124125264f), MaterialFire, bestDistance, bestMaterial); // #f82004
     ConsiderPaletteMaterial(lab, float3(0.403495674f, 0.129047358f, 0.081039145f), MaterialWood, bestDistance, bestMaterial); // #881400
     ConsiderPaletteMaterial(lab, float3(0.889581419f, -0.002941500f, 0.121046406f), MaterialSand, bestDistance, bestMaterial); // #f8d878
     ConsiderPaletteMaterial(lab, float3(0.819590146f, 0.019897132f, 0.167276772f), MaterialSulfur, bestDistance, bestMaterial); // #f8b800

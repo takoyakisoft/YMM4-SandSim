@@ -1,6 +1,7 @@
 #include "SandBehavior.hlsli"
 
 Texture2D<uint> RigidMeta : register(t0);
+Texture2D<uint> RigidBodyLabel : register(t1);
 RWTexture2D<float4> RigidState : register(u0); // xy=current, zw=previous
 RWTexture2D<float4> RigidLambda : register(u1); // E, S, SE, SW; broken=large persistent marker
 
@@ -29,7 +30,7 @@ float SolveDistance(
     inout float4 stateB,
     float4 propertiesA,
     float4 propertiesB,
-    bool sameMaterial,
+    bool sameCohesiveRegion,
     float restLength,
     float lambda)
 {
@@ -46,13 +47,13 @@ float SolveDistance(
     const float constraint = currentLength - restLength;
 
     const float tensileStrain = max(constraint, 0.0f) / restLength;
-    if (tensileStrain > RigidPairBreakStrain(propertiesA, propertiesB, sameMaterial) * PhysicsBreakStrength)
+    if (tensileStrain > RigidPairBreakStrain(propertiesA, propertiesB, sameCohesiveRegion) * PhysicsBreakStrength)
         return BrokenRigidBondMarker;
 
     const float inverseMassA = 1.0f / max(propertiesA.x, 0.05f);
     const float inverseMassB = 1.0f / max(propertiesB.x, 0.05f);
     const float dt2 = max(PhysicsDeltaTime * PhysicsDeltaTime, 1e-8f);
-    const float compliance = PhysicsCompliance * RigidPairComplianceScale(propertiesA, propertiesB, sameMaterial);
+    const float compliance = PhysicsCompliance * RigidPairComplianceScale(propertiesA, propertiesB, sameCohesiveRegion);
     const float alphaTilde = compliance / dt2;
     const float deltaLambda = (-constraint - alphaTilde * lambda) /
         (inverseMassA + inverseMassB + alphaTilde);
@@ -156,24 +157,38 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         d = RigidState[p11];
     }
 
+    // A rigid body is one four-neighbour connected component of one material.
+    // Different materials and disconnected islands must collide as separate
+    // bodies rather than receiving XPBD bonds through a screen-sized macro.
+    const uint body00 = active00 ? RigidBodyLabel.Load(int3(p00, 0)) : 0xffffffffu;
+    const uint body10 = active10 ? RigidBodyLabel.Load(int3(p10, 0)) : 0xffffffffu;
+    const uint body01 = active01 ? RigidBodyLabel.Load(int3(p01, 0)) : 0xffffffffu;
+    const uint body11 = active11 ? RigidBodyLabel.Load(int3(p11, 0)) : 0xffffffffu;
+    const bool sameBody00_10 = body00 == body10;
+    const bool sameBody01_11 = body01 == body11;
+    const bool sameBody00_01 = body00 == body01;
+    const bool sameBody10_11 = body10 == body11;
+    const bool sameBody00_11 = body00 == body11;
+    const bool sameBody10_01 = body10 == body01;
+
     if (solveHorizontal)
     {
-        if (active00 && active10)
-            lambda00.x = SolveDistance(a, b, properties00, properties10, material00 == material10, 1.0f, lambda00.x);
-        if (active01 && active11)
-            lambda01.x = SolveDistance(c, d, properties01, properties11, material01 == material11, 1.0f, lambda01.x);
+        if (active00 && active10 && sameBody00_10)
+            lambda00.x = SolveDistance(a, b, properties00, properties10, true, 1.0f, lambda00.x);
+        if (active01 && active11 && sameBody01_11)
+            lambda01.x = SolveDistance(c, d, properties01, properties11, true, 1.0f, lambda01.x);
     }
     if (solveVertical)
     {
-        if (active00 && active01)
-            lambda00.y = SolveDistance(a, c, properties00, properties01, material00 == material01, 1.0f, lambda00.y);
-        if (active10 && active11)
-            lambda10.y = SolveDistance(b, d, properties10, properties11, material10 == material11, 1.0f, lambda10.y);
+        if (active00 && active01 && sameBody00_01)
+            lambda00.y = SolveDistance(a, c, properties00, properties01, true, 1.0f, lambda00.y);
+        if (active10 && active11 && sameBody10_11)
+            lambda10.y = SolveDistance(b, d, properties10, properties11, true, 1.0f, lambda10.y);
     }
-    if (active00 && active11)
-        lambda00.z = SolveDistance(a, d, properties00, properties11, material00 == material11, 1.41421356237f, lambda00.z);
-    if (active10 && active01)
-        lambda10.w = SolveDistance(b, c, properties10, properties01, material10 == material01, 1.41421356237f, lambda10.w);
+    if (active00 && active11 && sameBody00_11)
+        lambda00.z = SolveDistance(a, d, properties00, properties11, true, 1.41421356237f, lambda00.z);
+    if (active10 && active01 && sameBody10_01)
+        lambda10.w = SolveDistance(b, c, properties10, properties01, true, 1.41421356237f, lambda10.w);
 
     if (active00)
     {

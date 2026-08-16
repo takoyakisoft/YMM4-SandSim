@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\YMM4SandSim\YMM4SandSim.csproj" />
+    <Compile Remove="ShaderBytecodeTests.cs" Condition="'$(SkipShaderCompilation)' == 'true'" />
   </ItemGroup>
 
   <ItemGroup>

@@ -464,9 +464,14 @@ void TryHorizontal(
 
 float ExplosionPressureAt(uint2 position)
 {
-    if (position.x >= LogicalStateWidth || position.y >= LogicalStateHeight)
-        return 0.0f;
-    return ExplosionPressure.Load(int3(position, 0));
+    float pressure = 0.0f;
+    if (position.x < LogicalStateWidth && position.y < LogicalStateHeight)
+    {
+        pressure = max(ExplosionPressure.Load(int3(position, 0)), 0.0f);
+        if (IsInsideManualExplosionRegion(position))
+            pressure = max(pressure, ManualExplosionBlastMask(position));
+    }
+    return pressure;
 }
 
 void TriggerGunpowderFromBlast(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
@@ -487,6 +492,55 @@ void TriggerGunpowderFromBlast(inout Cell cell, bool rigidOccupied, uint2 positi
 
     SetMaterial(cell, MaterialFire);
     cell.Meta |= ExplosionEventFlag;
+}
+
+void SeedManualExplosionFire(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
+{
+    if (rigidOccupied || ManualExplosionEnabled == 0u || ExplosionStrength <= 0.0f)
+        return;
+
+    const float2 delta = float2(position) - float2(ManualExplosionCellX, ManualExplosionCellY);
+    const float distance = length(delta);
+    const float cavityRadius = ManualExplosionCavityRadius();
+
+    // A controller explosion destroys its inner core instead of filling the
+    // center with orange fire. This is deliberately a one-shot operation:
+    // ManualExplosionEnabled is true only on the trigger iteration.
+    if (distance <= cavityRadius)
+    {
+        cell = EmptyCell();
+        return;
+    }
+
+    const uint material = GetMaterial(cell.Meta);
+    const float fireShellRadius = cavityRadius + max(ExplosionRadius * 0.05f, 1.5f);
+    if (distance > fireShellRadius)
+        return;
+
+    // Fire lives on the cavity wall. Empty cells receive visible flame and
+    // flammable material ignites here; later spread stays normal CA chemistry.
+    if (material != MaterialEmpty &&
+        (IsHeat(material) || IgnitionProbability(MaterialFire, material) <= 0.0f))
+        return;
+
+    const float shell = saturate(
+        1.0f - (distance - cavityRadius) / max(fireShellRadius - cavityRadius, 0.001f));
+    const float probability = saturate((0.45f + shell * 0.50f) * ExplosionStrength);
+    if (material == MaterialEmpty)
+    {
+        if (ChanceUnscaled(randomCell, salt, probability))
+            SetMaterial(cell, MaterialFire);
+        return;
+    }
+
+    if (ChanceUnscaled(randomCell, salt + 1u, probability))
+        SetMaterial(cell, MaterialFire);
+}
+
+void ReactCellToBlast(inout Cell cell, bool rigidOccupied, uint2 position, uint2 randomCell, uint salt)
+{
+    TriggerGunpowderFromBlast(cell, rigidOccupied, position, randomCell, salt);
+    SeedManualExplosionFire(cell, rigidOccupied, position, randomCell, salt + 1u);
 }
 
 bool CanBlastMove(uint mover, uint target)
@@ -567,7 +621,7 @@ void AdvanceStandaloneCell(uint2 position, uint salt)
     }
 
     Cell cell = LoadCell(position);
-    TriggerGunpowderFromBlast(cell, false, position, position, salt + 41u);
+    ReactCellToBlast(cell, false, position, position, salt + 41u);
     AdvanceLifetime(cell, position, salt);
     StoreCell(position, cell);
 }
@@ -582,7 +636,7 @@ void StepSingleLogicalCell(uint2 block)
     }
 
     Cell cell = LoadCell(position);
-    TriggerGunpowderFromBlast(cell, false, position, block, StepIndex * 32u + 41u);
+    ReactCellToBlast(cell, false, position, block, StepIndex * 32u + 41u);
     AdvanceLifetime(cell, block, StepIndex * 32u);
     StoreCell(position, cell);
 }
@@ -613,8 +667,8 @@ void StepVerticalLogicalLine(uint2 block, uint phase)
     if (!upperRigid) upper = LoadCell(upperPosition);
     if (!lowerRigid) lower = LoadCell(lowerPosition);
 
-    TriggerGunpowderFromBlast(upper, upperRigid, upperPosition, block, StepIndex * 32u + 41u);
-    TriggerGunpowderFromBlast(lower, lowerRigid, lowerPosition, block, StepIndex * 32u + 42u);
+    ReactCellToBlast(upper, upperRigid, upperPosition, block, StepIndex * 32u + 41u);
+    ReactCellToBlast(lower, lowerRigid, lowerPosition, block, StepIndex * 32u + 42u);
     AdvanceLifetime(upper, block, StepIndex * 32u + 0u);
     AdvanceLifetime(lower, block, StepIndex * 32u + 4u);
     ReactPair(upper, lower, block, StepIndex * 64u);
@@ -651,8 +705,8 @@ void StepHorizontalLogicalLine(uint2 block, uint phase)
     if (!leftRigid) left = LoadCell(leftPosition);
     if (!rightRigid) right = LoadCell(rightPosition);
 
-    TriggerGunpowderFromBlast(left, leftRigid, leftPosition, block, StepIndex * 32u + 43u);
-    TriggerGunpowderFromBlast(right, rightRigid, rightPosition, block, StepIndex * 32u + 44u);
+    ReactCellToBlast(left, leftRigid, leftPosition, block, StepIndex * 32u + 43u);
+    ReactCellToBlast(right, rightRigid, rightPosition, block, StepIndex * 32u + 44u);
     AdvanceLifetime(left, block, StepIndex * 32u + 0u);
     AdvanceLifetime(right, block, StepIndex * 32u + 4u);
     ReactPair(left, right, block, StepIndex * 64u);
@@ -762,10 +816,10 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (rigidC) c = EmptyCell();
     if (rigidD) d = EmptyCell();
 
-    TriggerGunpowderFromBlast(a, rigidA, p00, block, StepIndex * 32u + 41u);
-    TriggerGunpowderFromBlast(b, rigidB, p10, block, StepIndex * 32u + 42u);
-    TriggerGunpowderFromBlast(c, rigidC, p01, block, StepIndex * 32u + 43u);
-    TriggerGunpowderFromBlast(d, rigidD, p11, block, StepIndex * 32u + 44u);
+    ReactCellToBlast(a, rigidA, p00, block, StepIndex * 32u + 41u);
+    ReactCellToBlast(b, rigidB, p10, block, StepIndex * 32u + 42u);
+    ReactCellToBlast(c, rigidC, p01, block, StepIndex * 32u + 43u);
+    ReactCellToBlast(d, rigidD, p11, block, StepIndex * 32u + 44u);
 
     AdvanceLifetime(a, block, StepIndex * 32u + 0u);
     AdvanceLifetime(b, block, StepIndex * 32u + 4u);

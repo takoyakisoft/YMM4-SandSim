@@ -1,13 +1,57 @@
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("build", "test", "format", "lint", "publish", "shaders")]
-    [string]$Task = "build"
+    [ValidateSet("build", "test", "fmt", "format", "lint", "check", "clean", "publish", "shaders", "help")]
+    [string]$Task = "help",
+
+    [switch]$Verify,
+
+    [ValidateSet("Fast", "Release")]
+    [string]$ShaderOptimization = "Release"
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $propsPath = Join-Path $root "Directory.Build.props"
+
+function Show-DevHelp {
+    @"
+Usage:
+  .\scripts\dev.ps1 <command> [options]
+
+Commands:
+  build      Build shaders and the plugin, then deploy to YMM4.
+  test       Run static contract tests and xUnit tests.
+  fmt        Format managed sources. Alias: format
+  format     Format managed sources.
+  lint       Run analyzer/lint checks.
+  check      Verify formatting, run lint checks, and run tests.
+  clean      Remove repository build outputs and generated shaders.
+  shaders    Compile shaders without building the plugin.
+  publish    Build, deploy, and create the release package.
+  help       Show this command list. (default)
+
+Options:
+  -Verify                     With fmt/format, verify without changing files.
+  -ShaderOptimization Fast|Release
+                              Select shader optimization for the shaders command.
+                              Default: Release
+
+Examples:
+  .\scripts\dev.ps1
+  .\scripts\dev.ps1 help
+  .\scripts\dev.ps1 build
+  .\scripts\dev.ps1 shaders -ShaderOptimization Fast
+  .\scripts\dev.ps1 test
+  .\scripts\dev.ps1 check
+  .\scripts\dev.ps1 publish
+"@ | Write-Host
+}
+
+if ($Task -eq "help") {
+    Show-DevHelp
+    return
+}
 
 function Get-BuildProperty {
     param([Parameter(Mandatory = $true)][string]$Name)
@@ -52,49 +96,286 @@ function Invoke-CommandChecked {
     }
 }
 
-function Invoke-ShaderBuild {
-    $fxc = Get-RequiredFileProperty "FxcPath"
-    $shaderDirectory = Join-Path $root "YMM4SandSim\Shaders"
-    $shaders = @(
-        @{ Source = "SandInitialize.hlsl";      Profile = "cs_5_0" },
-        @{ Source = "SandStep.hlsl";            Profile = "cs_5_0" },
-        @{ Source = "SandRigidInitialize.hlsl"; Profile = "cs_5_0" },
-        @{ Source = "SandRigidIntegrate.hlsl";  Profile = "cs_5_0" },
-        @{ Source = "SandRigidSolve.hlsl";      Profile = "cs_5_0" },
-        @{ Source = "SandRigidGrid.hlsl";       Profile = "cs_5_0" },
-        @{ Source = "SandRigidReact.hlsl";      Profile = "cs_5_0" },
-        @{ Source = "SandExplosionUpdate.hlsl"; Profile = "cs_5_0" },
-        @{ Source = "SandLightSeed.hlsl";       Profile = "cs_5_0" },
-        @{ Source = "SandLightPropagate.hlsl";  Profile = "cs_5_0" },
-        @{ Source = "SandFullscreenVS.hlsl";    Profile = "vs_5_0" },
-        @{ Source = "SandRenderPS.hlsl";        Profile = "ps_5_0" }
+function Get-ShaderDependencyPaths {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$ShaderDirectory
     )
 
-    $listedSources = @($shaders | ForEach-Object Source)
-    $unlistedSources = @(
-        Get-ChildItem -LiteralPath $shaderDirectory -Filter "*.hlsl" -File |
-            Where-Object { $_.Name -notin $listedSources } |
-            ForEach-Object Name
-    )
-    if ($unlistedSources.Count -ne 0) {
-        throw "HLSL source is not in dev.ps1: $($unlistedSources -join ', ')"
+    $pending = [System.Collections.Generic.Stack[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $pending.Push([IO.Path]::GetFullPath($SourcePath))
+
+    while ($pending.Count -gt 0) {
+        $path = $pending.Pop()
+        if (-not $visited.Add($path)) {
+            continue
+        }
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Shader dependency was not found: $path"
+        }
+
+        foreach ($line in [IO.File]::ReadLines($path)) {
+            if ($line -notmatch '^\s*#\s*include\s+"([^"]+)"') {
+                continue
+            }
+
+            $includeName = $Matches[1]
+            $candidate = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $path) $includeName))
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+                $candidate = [IO.Path]::GetFullPath((Join-Path $ShaderDirectory $includeName))
+            }
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+                throw "Shader include was not found: $includeName (from $path)"
+            }
+            $pending.Push($candidate)
+        }
     }
 
-    foreach ($shader in $shaders) {
+    return @($visited)
+}
+
+function Test-ShaderNeedsCompilation {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$OutputPath,
+        [Parameter(Mandatory = $true)][string]$StampPath,
+        [Parameter(Mandatory = $true)][string]$ShaderDirectory,
+        [Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization
+    )
+
+    if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $StampPath -PathType Leaf)) {
+        return $true
+    }
+    if ((Get-Content -LiteralPath $StampPath -Raw).Trim() -ne $Optimization) {
+        return $true
+    }
+
+    $outputTime = (Get-Item -LiteralPath $OutputPath).LastWriteTimeUtc
+    foreach ($dependency in Get-ShaderDependencyPaths -SourcePath $SourcePath -ShaderDirectory $ShaderDirectory) {
+        if ((Get-Item -LiteralPath $dependency).LastWriteTimeUtc -gt $outputTime) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-ShaderCompilerParallelism {
+    param([Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization)
+
+    # /O3 is CPU- and memory-heavy for the shared shader graph. Final builds
+    # favor reliability; iterative /O0 builds can safely use bounded parallelism.
+    $defaultLimit = if ($Optimization -eq "Release") { 1 } else { 4 }
+    $parallelism = [Math]::Max(1, [Math]::Min([Environment]::ProcessorCount, $defaultLimit))
+    $configured = 0
+    if ([int]::TryParse($env:YMM4SANDSIM_FXC_JOBS, [ref]$configured) -and $configured -gt 0) {
+        $parallelism = [Math]::Min($configured, 16)
+    }
+    return $parallelism
+}
+
+function Start-ShaderCompilerProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$FxcPath,
+        [Parameter(Mandatory = $true)][string]$ShaderDirectory,
+        [Parameter(Mandatory = $true)]$ShaderJob,
+        [Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization
+    )
+
+    $token = [Guid]::NewGuid().ToString("N")
+    $tempOutput = "$($ShaderJob.OutputPath).tmp.$token"
+    $stdoutPath = "$tempOutput.stdout"
+    $stderrPath = "$tempOutput.stderr"
+    $optimizationFlag = if ($Optimization -eq "Release") { "/O3" } else { "/O0" }
+    $arguments = @(
+        "/nologo",
+        "/WX",
+        $optimizationFlag,
+        "/T", $ShaderJob.Profile,
+        "/E", "main",
+        "/I", ('"{0}"' -f $ShaderDirectory),
+        "/Fo", ('"{0}"' -f $tempOutput),
+        ('"{0}"' -f $ShaderJob.SourcePath)
+    ) -join " "
+
+    Write-Host "Compiling $($ShaderJob.Source) [$($ShaderJob.Profile), $optimizationFlag]"
+    $startedAt = [DateTime]::UtcNow
+    $process = Start-Process -FilePath $FxcPath -ArgumentList $arguments -NoNewWindow -PassThru `
+        -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    # Windows PowerShell 5.1 can return a blank ExitCode unless the process
+    # handle is opened before the child exits.
+    $null = $process.Handle
+
+    return [pscustomobject]@{
+        Token = $token
+        Job = $ShaderJob
+        Process = $process
+        TempOutput = $tempOutput
+        StdoutPath = $stdoutPath
+        StderrPath = $stderrPath
+        Optimization = $Optimization
+        StartedAt = $startedAt
+    }
+}
+
+function Complete-ShaderCompilerProcess {
+    param([Parameter(Mandatory = $true)]$ActiveJob)
+
+    $process = $ActiveJob.Process
+    $backupOutput = "$($ActiveJob.Job.OutputPath).bak.$($ActiveJob.Token)"
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
+    $process.Dispose()
+    $elapsed = [DateTime]::UtcNow - $ActiveJob.StartedAt
+
+    $stdout = if (Test-Path -LiteralPath $ActiveJob.StdoutPath -PathType Leaf) {
+        Get-Content -LiteralPath $ActiveJob.StdoutPath -Raw
+    } else { "" }
+    $stderr = if (Test-Path -LiteralPath $ActiveJob.StderrPath -PathType Leaf) {
+        Get-Content -LiteralPath $ActiveJob.StderrPath -Raw
+    } else { "" }
+
+    try {
+        if ($exitCode -ne 0) {
+            $details = (($stdout, $stderr) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine
+            throw ("FXC failed for {0} after {1:n1}s with exit code {2}.{3}{4}" -f `
+                $ActiveJob.Job.Source, $elapsed.TotalSeconds, $exitCode, [Environment]::NewLine, $details)
+        }
+        if (-not (Test-Path -LiteralPath $ActiveJob.TempOutput -PathType Leaf)) {
+            throw "FXC reported success but output is missing: $($ActiveJob.Job.OutputPath)"
+        }
+
+        if (Test-Path -LiteralPath $ActiveJob.Job.OutputPath -PathType Leaf) {
+            # Windows PowerShell 5.1 binds a null backup path as an invalid
+            # empty string, so use a unique backup and remove it below.
+            [IO.File]::Replace($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath, $backupOutput)
+        }
+        else {
+            [IO.File]::Move($ActiveJob.TempOutput, $ActiveJob.Job.OutputPath)
+        }
+        [IO.File]::WriteAllText($ActiveJob.Job.StampPath, $ActiveJob.Optimization)
+        Write-Host ("Compiled {0} in {1:n1}s" -f $ActiveJob.Job.Source, $elapsed.TotalSeconds)
+    }
+    finally {
+        Remove-Item -LiteralPath $ActiveJob.TempOutput, $backupOutput, $ActiveJob.StdoutPath, $ActiveJob.StderrPath `
+            -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Invoke-ShaderBuild {
+    param([Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization)
+
+    $fxc = Get-RequiredFileProperty "FxcPath"
+    $shaderDirectory = Join-Path $root "YMM4SandSim\Shaders"
+    $shaderJobs = @(
+        @{ Source = "SandInitialize.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandStep.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidInitialize.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidIntegrate.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidSolve.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidGrid.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidComponents.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandRigidReact.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandExplosionUpdate.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandLightSeed.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandLightPropagate.hlsl"; Profile = "cs_5_0" },
+        @{ Source = "SandFullscreenVS.hlsl"; Profile = "vs_5_0" },
+        @{ Source = "SandRenderPS.hlsl"; Profile = "ps_5_0" }
+    )
+
+    $compileJobs = @()
+    foreach ($shader in $shaderJobs) {
         $source = Join-Path $shaderDirectory $shader.Source
-        $output = Join-Path $shaderDirectory "$([IO.Path]::GetFileNameWithoutExtension($shader.Source)).cso"
-        Remove-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue
-        Invoke-CommandChecked "Compile $($shader.Source) [$($shader.Profile)]" {
-            & $fxc /nologo /O3 /Ges /WX /I $shaderDirectory /T $shader.Profile /E main /Fo $output $source
+        $output = [IO.Path]::ChangeExtension($source, ".cso")
+        $stamp = "$output.mode"
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Shader source was not found: $source"
         }
-        if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
-            throw "FXC reported success but output is missing: $output"
+
+        if (Test-ShaderNeedsCompilation -SourcePath $source -OutputPath $output -StampPath $stamp `
+            -ShaderDirectory $shaderDirectory -Optimization $Optimization) {
+            $compileJobs += [pscustomobject]@{
+                Source = $shader.Source
+                Profile = $shader.Profile
+                SourcePath = $source
+                OutputPath = $output
+                StampPath = $stamp
+            }
         }
+    }
+
+    if ($compileJobs.Count -eq 0) {
+        Write-Host "Shaders are up to date ($Optimization)."
+        return
+    }
+
+    $parallelism = Get-ShaderCompilerParallelism -Optimization $Optimization
+    $optimizationFlag = if ($Optimization -eq "Release") { "/O3" } else { "/O0" }
+    Write-Host "Compiling $($compileJobs.Count) shader(s) in $Optimization mode ($optimizationFlag) with up to $parallelism FXC process(es)."
+
+    $nextJob = 0
+    $active = @()
+    $failure = $null
+    while ($nextJob -lt $compileJobs.Count -or $active.Count -gt 0) {
+        while ($null -eq $failure -and $nextJob -lt $compileJobs.Count -and $active.Count -lt $parallelism) {
+            $active += Start-ShaderCompilerProcess -FxcPath $fxc -ShaderDirectory $shaderDirectory `
+                -ShaderJob $compileJobs[$nextJob] -Optimization $Optimization
+            $nextJob++
+        }
+
+        $completed = @($active | Where-Object { $_.Process.HasExited })
+        if ($completed.Count -eq 0) {
+            Start-Sleep -Milliseconds 50
+            continue
+        }
+
+        $completedTokens = @($completed | ForEach-Object { $_.Token })
+        foreach ($item in $completed) {
+            try {
+                Complete-ShaderCompilerProcess -ActiveJob $item
+            }
+            catch {
+                if ($null -eq $failure) {
+                    $failure = $_
+                }
+            }
+        }
+        $active = @($active | Where-Object { $_.Token -notin $completedTokens })
+        if ($null -ne $failure) {
+            $nextJob = $compileJobs.Count
+            foreach ($running in $active) {
+                try {
+                    if (-not $running.Process.HasExited) {
+                        $running.Process.Kill()
+                    }
+                    $running.Process.WaitForExit()
+                }
+                catch {
+                    # Preserve the first FXC failure; cancellation is best-effort.
+                }
+                finally {
+                    $running.Process.Dispose()
+                    Remove-Item -LiteralPath $running.TempOutput, $running.StdoutPath, $running.StderrPath `
+                        -Force -ErrorAction SilentlyContinue
+                }
+            }
+            $active = @()
+        }
+    }
+
+    if ($null -ne $failure) {
+        Write-Error -Message $failure.Exception.Message -ErrorAction Continue
+        throw $failure
     }
 }
 
 function Invoke-PluginBuild {
-    param([switch]$Deploy)
+    param(
+        [switch]$Deploy,
+        [Parameter(Mandatory = $true)][ValidateSet("Fast", "Release")][string]$Optimization
+    )
 
     $dotnet = Get-RequiredFileProperty "DotnetPath"
     $ymm4Dir = [IO.Path]::GetFullPath((Get-BuildProperty "YMM4DirPath"))
@@ -108,22 +389,88 @@ function Invoke-PluginBuild {
     Invoke-CommandChecked "Build plugin and shaders" {
         & $dotnet build $pluginProject -c Release -p:Platform=x64 `
             "-p:YMM4DirPath=$ymm4Dir" "-p:FxcPath=$fxc" `
-            "-p:SkipPluginDeploy=$skipDeploy"
+            "-p:SkipPluginDeploy=$skipDeploy" `
+            "-p:YMM4SandSimShaderOptimization=$Optimization"
     }
 }
 
 function Invoke-DotnetFormat {
-    param([Parameter(Mandatory = $true)][string]$Subcommand)
+    param(
+        [string]$Subcommand,
+        [switch]$VerifyNoChanges
+    )
 
     $dotnet = Get-RequiredFileProperty "DotnetPath"
     foreach ($project in @(
         (Join-Path $root "YMM4SandSim\YMM4SandSim.csproj"),
         (Join-Path $root "YMM4SandSim.Tests\YMM4SandSim.Tests.csproj")
     )) {
+        $arguments = @("format")
+        if (-not [string]::IsNullOrWhiteSpace($Subcommand)) {
+            $arguments += $Subcommand
+        }
+        $arguments += @($project, "--verbosity", "minimal")
+        if ($VerifyNoChanges) {
+            $arguments += "--verify-no-changes"
+        }
         Invoke-CommandChecked "dotnet format $Subcommand $([IO.Path]::GetFileName($project))" {
-            & $dotnet format $Subcommand $project --verbosity minimal
+            & $dotnet @arguments
         }
     }
+}
+
+function Invoke-Tests {
+    $python = Get-RequiredFileProperty "PythonPath"
+    Invoke-CommandChecked "Run static contract tests" {
+        & $python (Join-Path $root "YMM4SandSim.Tests\StaticContractTests.py")
+    }
+
+    $dotnet = Get-RequiredFileProperty "DotnetPath"
+    $testProject = Join-Path $root "YMM4SandSim.Tests\YMM4SandSim.Tests.csproj"
+    Invoke-CommandChecked "Run xUnit tests" {
+        & $dotnet test $testProject -c Release -p:Platform=x64 -p:SkipPluginDeploy=true `
+            -p:SkipShaderCompilation=true
+    }
+}
+
+function Invoke-Format {
+    Invoke-DotnetFormat -VerifyNoChanges:$Verify
+}
+
+function Invoke-Lint {
+    Invoke-DotnetFormat "style" -VerifyNoChanges
+    Invoke-DotnetFormat "analyzers" -VerifyNoChanges
+}
+
+function Remove-BuildOutputs {
+    $outputPaths = @(
+        "artifacts",
+        "YMM4SandSim\bin",
+        "YMM4SandSim\obj",
+        "YMM4SandSim.Tests\bin",
+        "YMM4SandSim.Tests\obj",
+        "YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator\bin",
+        "YukkuriMovieMaker.Generator\YukkuriMovieMaker.Generator\obj"
+    )
+
+    $rootPrefix = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'
+    foreach ($relativePath in $outputPaths) {
+        $path = [IO.Path]::GetFullPath((Join-Path $root $relativePath))
+        if (-not $path.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean a path outside the repository: $path"
+        }
+        if (Test-Path -LiteralPath $path) {
+            Write-Host "Removing $relativePath"
+            Remove-Item -LiteralPath $path -Recurse -Force
+        }
+    }
+
+    Get-ChildItem -LiteralPath (Join-Path $root "YMM4SandSim\Shaders") -File |
+        Where-Object { $_.Name -match '\.cso(?:\.mode)?$' } |
+        ForEach-Object {
+            Write-Host "Removing YMM4SandSim\Shaders\$($_.Name)"
+            Remove-Item -LiteralPath $_.FullName -Force
+        }
 }
 
 function New-ReleasePackage {
@@ -211,37 +558,33 @@ function New-ReleasePackage {
 
 switch ($Task) {
     "build" {
-        Invoke-PluginBuild -Deploy
+        Invoke-PluginBuild -Deploy -Optimization Release
     }
     "test" {
-        $python = Get-RequiredFileProperty "PythonPath"
-        Invoke-CommandChecked "Run static contract tests" {
-            & $python (Join-Path $root "YMM4SandSim.Tests\StaticContractTests.py")
-        }
-
-        $dotnet = Get-RequiredFileProperty "DotnetPath"
-        $testProject = Join-Path $root "YMM4SandSim.Tests\YMM4SandSim.Tests.csproj"
-        Invoke-CommandChecked "Run xUnit tests" {
-            & $dotnet test $testProject -c Release -p:Platform=x64 -p:SkipPluginDeploy=true
-        }
+        Invoke-Tests
+    }
+    "fmt" {
+        Invoke-Format
     }
     "format" {
-        Invoke-DotnetFormat "whitespace"
+        Invoke-Format
     }
     "lint" {
-        Invoke-DotnetFormat "style"
-        Invoke-DotnetFormat "analyzers"
-        $dotnet = Get-RequiredFileProperty "DotnetPath"
-        Invoke-CommandChecked "Build with warnings treated as errors" {
-            & $dotnet build (Join-Path $root "YMM4SandSim\YMM4SandSim.csproj") `
-                -c Release -p:Platform=x64 -p:SkipPluginDeploy=true -p:TreatWarningsAsErrors=true
-        }
+        Invoke-Lint
     }
-    "publish" {
-        Invoke-PluginBuild -Deploy
-        New-ReleasePackage
+    "check" {
+        Invoke-Format
+        Invoke-Lint
+        Invoke-Tests
+    }
+    "clean" {
+        Remove-BuildOutputs
     }
     "shaders" {
-        Invoke-ShaderBuild
+        Invoke-ShaderBuild -Optimization $ShaderOptimization
+    }
+    "publish" {
+        Invoke-PluginBuild -Deploy -Optimization Release
+        New-ReleasePackage
     }
 }

@@ -42,13 +42,41 @@ float4 main(float4 position : SV_Position) : SV_Target
     }
 
     const uint material = GetMaterial(meta);
+    uint packedLight = 0u;
+    float3 propagatedLight = 0.0f;
+    float shockwaveAlpha = 0.0f;
+    if (LightingStrength > 0.0f)
+    {
+        packedLight = LightField.Load(int3(statePosition, 0));
+        propagatedLight = UnpackLight(packedLight);
+        // Empty cells normally quantize to optical code 31. Code 30 is reserved
+        // for an empty pressure-front cell. Restrict the test to MaterialEmpty so
+        // ordinary material transmission can never be mistaken for a shock ring.
+        if (material == MaterialEmpty && HasShockwaveLightMarker(packedLight))
+        {
+            const float frontBrightness = max(propagatedLight.r, max(propagatedLight.g, propagatedLight.b));
+            shockwaveAlpha = saturate(frontBrightness * saturate(LightingStrength) * 0.36f);
+        }
+    }
+
     if (material == MaterialEmpty)
-        return 0.0f;
+    {
+        // Draw only the marked one-cell pressure front across otherwise empty
+        // space. The output is premultiplied so it composites correctly in YMM4.
+        const float3 shockwaveColor = float3(1.00f, 0.48f, 0.10f);
+        return shockwaveAlpha > 0.0f
+            ? float4(shockwaveColor * shockwaveAlpha, shockwaveAlpha)
+            : 0.0f;
+    }
 
     float4 straightColor;
-    if (ColorMode == 1u)
+    const bool transientHeat =
+        material == MaterialFire || material == MaterialEmber ||
+        material == MaterialSmoke || material == MaterialSteam;
+    if (ColorMode == 1u && !transientHeat)
     {
-        // PreserveInput is literal for both cellular and XPBD-owned solids.
+        // Preserve the source artwork for persistent matter. Reaction products
+        // use their physical palette color so fire cannot look like orange sand.
         straightColor = UnpackColor(color);
     }
     else
@@ -58,7 +86,6 @@ float4 main(float4 position : SV_Position) : SV_Target
 
     if (LightingStrength > 0.0f)
     {
-        const float3 propagatedLight = UnpackLight(LightField.Load(int3(statePosition, 0)));
         const float blend = saturate(LightingStrength);
         const float overdrive = max(LightingStrength - 1.0f, 0.0f);
         const float3 litFactor = float3(AmbientLight, AmbientLight, AmbientLight) +
@@ -69,6 +96,5 @@ float4 main(float4 position : SV_Position) : SV_Target
         straightColor.rgb *= lightingFactor;
     }
 
-    const float4 sandColor = float4(straightColor.rgb * straightColor.a, straightColor.a);
-    return sandColor;
+    return float4(straightColor.rgb * straightColor.a, straightColor.a);
 }

@@ -119,37 +119,31 @@ internal sealed class SandSimulationEffectProcessor : IVideoEffectProcessor
             IterationsPerFrame: ClampRounded(_item.IterationsPerFrame.GetValue(frame, length, fps), 1, SandSimulationSettings.MaximumIterationsPerFrame),
             WarmupIterations: ClampRounded(_item.WarmupIterations.GetValue(frame, length, fps), 0, SandSimulationSettings.MaximumWarmupIterations),
             Spread: ClampUnit(_item.Spread.GetValue(frame, length, fps) / 100.0),
-            ReactionStrength: ClampFinite(
+            ReactionStrength: ClampFiniteAtLeast(
                 _item.ReactionStrength.GetValue(frame, length, fps) / 100.0,
-                0f,
-                SandSimulationSettings.MaximumNormalizedPercentMultiplier),
+                0f),
             SolidPhysicsMode: SandSimulationSettings.NormalizeSolidPhysicsMode(_item.SolidPhysicsMode),
-            SolidGravity: ClampFinite(
+            SolidGravity: ClampFiniteAtLeast(
                 _item.SolidGravity.GetValue(frame, length, fps) / 100.0,
-                0f,
-                SandSimulationSettings.MaximumNormalizedPercentMultiplier),
-            SolidStiffness: ClampFinite(
+                0f),
+            SolidStiffness: ClampFiniteAtLeast(
                 _item.SolidStiffness.GetValue(frame, length, fps) / 100.0,
-                0.25f,
-                SandSimulationSettings.MaximumNormalizedPercentMultiplier),
-            SolidBreakStrength: ClampFinite(
+                0f),
+            SolidBreakStrength: ClampFiniteAtLeast(
                 _item.SolidBreakStrength.GetValue(frame, length, fps) / 100.0,
-                0.25f,
-                SandSimulationSettings.MaximumNormalizedPercentMultiplier),
+                0f),
             SolidSolverIterations: ClampRounded(_item.SolidSolverIterations.GetValue(frame, length, fps), 1, SandSimulationSettings.MaximumSolidSolverIterations),
             ExplosionControllerEnabled: _item.ExplosionControllerEnabled,
-            ExplosionX: ClampFinite(_item.ExplosionX.GetValue(frame, length, fps), -SandSimulationSettings.MaximumCanvasSize, SandSimulationSettings.MaximumCanvasSize),
-            ExplosionY: ClampFinite(_item.ExplosionY.GetValue(frame, length, fps), -SandSimulationSettings.MaximumCanvasSize, SandSimulationSettings.MaximumCanvasSize),
-            ExplosionTriggerFrame: ClampRounded(_item.ExplosionTriggerFrame.GetValue(frame, length, fps), 0, 1_000_000),
-            ExplosionStrength: ClampFinite(
+            ExplosionX: FiniteOrZero(_item.ExplosionX.GetValue(frame, length, fps)),
+            ExplosionY: FiniteOrZero(_item.ExplosionY.GetValue(frame, length, fps)),
+            ExplosionTriggerFrame: RoundAtLeast(_item.ExplosionTriggerFrame.GetValue(frame, length, fps), 0),
+            ExplosionStrength: ClampFiniteAtLeast(
                 _item.ExplosionStrength.GetValue(frame, length, fps) / 100.0,
-                0f,
-                SandSimulationSettings.MaximumNormalizedPercentMultiplier),
-            ExplosionRadius: ClampRounded(_item.ExplosionRadius.GetValue(frame, length, fps), 2, SandSimulationSettings.MaximumExplosionRadius),
-            LightingStrength: ClampFinite(
+                0f),
+            ExplosionRadius: RoundAtLeast(_item.ExplosionRadius.GetValue(frame, length, fps), 2),
+            LightingStrength: ClampFiniteAtLeast(
                 _item.LightingStrength.GetValue(frame, length, fps) / 100.0,
-                0f,
-                SandSimulationSettings.MaximumNormalizedPercentMultiplier),
+                0f),
             LightingRadius: ClampRounded(_item.LightingRadius.GetValue(frame, length, fps), 1, SandSimulationSettings.MaximumLightingRadius),
             AmbientLight: ClampUnit(_item.AmbientLight.GetValue(frame, length, fps) / 100.0),
             ShadowStrength: ClampUnit(_item.ShadowStrength.GetValue(frame, length, fps) / 100.0),
@@ -269,7 +263,8 @@ internal sealed class SandSimulationEffectProcessor : IVideoEffectProcessor
             ManualExplosionX: parameters.ExplosionX,
             ManualExplosionY: parameters.ExplosionY,
             ExplosionStrength: parameters.ExplosionStrength,
-            ExplosionRadius: parameters.ExplosionRadius,
+            ExplosionRadius: Math.Max(
+                1, (parameters.ExplosionRadius + parameters.ParticleSize - 1) / parameters.ParticleSize),
             LightingStrength: parameters.LightingStrength,
             LightingRadius: parameters.LightingRadius,
             AmbientLight: parameters.AmbientLight,
@@ -357,8 +352,8 @@ internal sealed class SandSimulationEffectProcessor : IVideoEffectProcessor
         {
             // VideoEffectController coordinates are item-local and centered, matching
             // YMM4's X/Y effect parameters. The second point is a horizontal radius
-            // handle; its screen distance is the pressure radius in simulation cells.
-            var radiusPixels = (float)(parameters.ExplosionRadius * parameters.ParticleSize);
+            // handle; ExplosionRadius is already expressed in screen pixels.
+            var radiusPixels = (float)parameters.ExplosionRadius;
             var controller = new VideoEffectController(
                 _item,
                 [
@@ -373,7 +368,7 @@ internal sealed class SandSimulationEffectProcessor : IVideoEffectProcessor
                         new Vector3(parameters.ExplosionX + radiusPixels, parameters.ExplosionY, 0f),
                         args =>
                         {
-                            _item.ExplosionRadius.AddToEachValues(args.Delta.X / parameters.ParticleSize);
+                            _item.ExplosionRadius.AddToEachValues(args.Delta.X);
                         }),
                 ])
             {
@@ -555,10 +550,18 @@ internal sealed class SandSimulationEffectProcessor : IVideoEffectProcessor
             ? Math.Clamp((float)value, 0f, 1f)
             : 0f;
 
-    private static float ClampFinite(double value, float minimum, float maximum)
+    private static int RoundAtLeast(double value, int minimum)
         => double.IsFinite(value)
-            ? Math.Clamp((float)value, minimum, maximum)
+            ? Math.Max((int)Math.Clamp(Math.Round(value), int.MinValue, int.MaxValue), minimum)
             : minimum;
+
+    private static float ClampFiniteAtLeast(double value, float minimum)
+        => double.IsFinite(value)
+            ? Math.Max((float)value, minimum)
+            : minimum;
+
+    private static float FiniteOrZero(double value)
+        => double.IsFinite(value) ? (float)value : 0f;
 
     private readonly record struct SourceGeometry(
         int Width,

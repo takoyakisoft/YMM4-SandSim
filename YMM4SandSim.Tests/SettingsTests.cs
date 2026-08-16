@@ -43,15 +43,15 @@ public sealed class SettingsTests
         Assert.Equal(0.0, SandSimulationSettings.PositiveAnimationMinimum);
         Assert.Equal(-100_000.0, SandSimulationSettings.SignedAnimationMinimum);
         Assert.Equal(100_000.0, SandSimulationSettings.AnimationMaximum);
-        Assert.Equal(1_000.0f, SandSimulationSettings.MaximumNormalizedPercentMultiplier);
+        Assert.Equal(1000.0, SandSimulationSettings.ExplosionRadiusSliderMaximum);
     }
 
     [Fact]
     public void SimulationMemoryBudgetDependsOnEnabledFeatures()
     {
         Assert.Equal(16, SandSimulationSettings.GetSimulationStateBytesPerCell(false, false, false));
-        Assert.Equal(60, SandSimulationSettings.GetSimulationStateBytesPerCell(true, false, false));
-        Assert.Equal(76, SandSimulationSettings.GetSimulationStateBytesPerCell(true, true, true));
+        Assert.Equal(68, SandSimulationSettings.GetSimulationStateBytesPerCell(true, false, false));
+        Assert.Equal(84, SandSimulationSettings.GetSimulationStateBytesPerCell(true, true, true));
         Assert.True(SandSimulationSettings.IsSimulationSizeSupported(3840, 2160, 1, false, false, false));
         Assert.False(SandSimulationSettings.IsSimulationSizeSupported(3840, 2160, 1, true, true, true));
         Assert.True(SandSimulationSettings.IsSimulationSizeSupported(3840, 2160, 2, true, true, true));
