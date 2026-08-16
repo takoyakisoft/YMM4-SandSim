@@ -1,8 +1,8 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("build", "test", "fmt", "format", "lint", "check", "clean", "publish", "shaders")]
-    [string]$Task = "build",
+    [ValidateSet("build", "test", "fmt", "format", "lint", "check", "clean", "publish", "shaders", "help")]
+    [string]$Task = "help",
 
     [switch]$Verify,
 
@@ -13,6 +13,45 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $propsPath = Join-Path $root "Directory.Build.props"
+
+function Show-DevHelp {
+    @"
+Usage:
+  .\scripts\dev.ps1 <command> [options]
+
+Commands:
+  build      Build shaders and the plugin, then deploy to YMM4.
+  test       Run static contract tests and xUnit tests.
+  fmt        Format managed sources. Alias: format
+  format     Format managed sources.
+  lint       Run analyzer/lint checks.
+  check      Verify formatting, run lint checks, and run tests.
+  clean      Remove repository build outputs and generated shaders.
+  shaders    Compile shaders without building the plugin.
+  publish    Build, deploy, and create the release package.
+  help       Show this command list. (default)
+
+Options:
+  -Verify                     With fmt/format, verify without changing files.
+  -ShaderOptimization Fast|Release
+                              Select shader optimization for the shaders command.
+                              Default: Release
+
+Examples:
+  .\scripts\dev.ps1
+  .\scripts\dev.ps1 help
+  .\scripts\dev.ps1 build
+  .\scripts\dev.ps1 shaders -ShaderOptimization Fast
+  .\scripts\dev.ps1 test
+  .\scripts\dev.ps1 check
+  .\scripts\dev.ps1 publish
+"@ | Write-Host
+}
+
+if ($Task -eq "help") {
+    Show-DevHelp
+    return
+}
 
 function Get-BuildProperty {
     param([Parameter(Mandatory = $true)][string]$Name)
